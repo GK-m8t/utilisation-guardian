@@ -39,6 +39,7 @@ export async function GET(req: NextRequest) {
   let probe: { ok: boolean; detail: string };
   try {
     if (provider === "hf") {
+      const modelOverride = req.nextUrl.searchParams.get("model");
       const res = await fetch("https://router.huggingface.co/v1/chat/completions", {
         method: "POST",
         headers: {
@@ -46,7 +47,7 @@ export async function GET(req: NextRequest) {
           Authorization: `Bearer ${process.env.HF_API_TOKEN}`,
         },
         body: JSON.stringify({
-          model: process.env.HF_MODEL || "Qwen/Qwen2.5-7B-Instruct",
+          model: modelOverride || process.env.HF_MODEL || "Qwen/Qwen2.5-7B-Instruct",
           messages: [{ role: "user", content: "Reply with the single word: ok" }],
           max_tokens: 5,
         }),

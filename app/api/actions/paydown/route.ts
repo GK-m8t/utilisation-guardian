@@ -47,7 +47,7 @@ export async function POST(req: NextRequest) {
 
   // Schedule the remainder (the affordability-adjusted split) if still above 30%.
   const remaining = Math.max(0, state.card.balance - factsBefore.targetBalance30);
-  const dueDate = dayLabel(state.demo.monthLabel, state.card.dueDay);
+  const dueDate = factsBefore.dueDate;
   if (remaining > 0) {
     state.scheduled.push({
       date: dueDate,

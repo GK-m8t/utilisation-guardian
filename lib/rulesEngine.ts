@@ -1,4 +1,4 @@
-import { dayLabel, inr, pct } from "./format";
+import { dayLabel, inr, nextMonthLabel, pct } from "./format";
 import type { AppState, GuardianFacts, Severity } from "./types";
 
 /**
@@ -16,7 +16,9 @@ import type { AppState, GuardianFacts, Severity } from "./types";
 
 const UTILISATION_TARGET = 0.3;
 const TRIGGER_UTILISATION = 0.3;
-const TRIGGER_DAYS_BEFORE_STATEMENT = 3;
+// Wide enough to cover the seeded scenario (statement on the 30th, today the
+// 20th). The Guardian acts as soon as it can, not at the last minute.
+const TRIGGER_DAYS_BEFORE_STATEMENT = 10;
 const LIMIT_INCREASE_REQUEST = 100_000;
 
 export function severityFor(utilisation: number): Severity {
@@ -73,7 +75,11 @@ export function evaluate(state: AppState): GuardianFacts {
     !demo.nudgedThisCycle;
 
   const statementDate = dayLabel(demo.monthLabel, card.statementDay);
-  const dueDate = dayLabel(demo.monthLabel, card.dueDay);
+  // A due day earlier in the month than the statement day belongs to the
+  // next month (statement Sep 30 → payment due Oct 22).
+  const dueMonth =
+    card.dueDay < card.statementDay ? nextMonthLabel(demo.monthLabel) : demo.monthLabel;
+  const dueDate = dayLabel(dueMonth, card.dueDay);
 
   return {
     triggered,

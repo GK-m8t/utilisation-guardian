@@ -13,8 +13,8 @@ function seed(): AppState {
       issuer: "HDFC",
       limit: 60_000,
       balance: 49_200, // 82% utilisation
-      statementDay: 5,
-      dueDay: 22,
+      statementDay: 30,
+      dueDay: 22, // falls after the statement → next month (Oct 22)
     },
     bank: {
       balance: 38_000, // salary landed on the 1st
@@ -25,7 +25,7 @@ function seed(): AppState {
     settings: { utilGuard: "ask", autoCap: 20_000 },
     actionLog: [],
     scheduled: [],
-    demo: { today: 2, monthLabel: "Sep", nudgedThisCycle: false },
+    demo: { today: 20, monthLabel: "Sep", nudgedThisCycle: false },
   };
 }
 

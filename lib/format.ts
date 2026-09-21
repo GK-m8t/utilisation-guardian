@@ -10,3 +10,10 @@ export function pct(fraction: number): string {
 export function dayLabel(monthLabel: string, day: number): string {
   return `${monthLabel} ${day}`;
 }
+
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+export function nextMonthLabel(monthLabel: string): string {
+  const i = MONTHS.indexOf(monthLabel);
+  return i === -1 ? monthLabel : MONTHS[(i + 1) % 12];
+}

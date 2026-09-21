@@ -48,7 +48,7 @@ Set `LLM_PROVIDER` in `.env.local` (see `.env.example`):
 |---|---|---|
 | *(unset)* | none | Deterministic templated explanation. The app never blocks on a model. |
 | `ollama` | [Install Ollama](https://ollama.com), `ollama pull llama3.2` | **Recommended default.** Local open model: keyless, offline, free. |
-| `hf` | `HF_API_TOKEN` | Hugging Face Inference API (default `Qwen/Qwen2.5-7B-Instruct`). The easy way to get a live open model on a Vercel deploy. |
+| `hf` | `HF_API_TOKEN` | Hugging Face Inference API (default `meta-llama/Llama-3.3-70B-Instruct`). The easy way to get a live open model on a Vercel deploy. |
 | `frontier` | `ANTHROPIC_API_KEY` or `OPENAI_API_KEY` | Frontier API, for comparison. |
 
 All providers sit behind one interface (`explain(facts, kind)`) — swapping is one env var. Any failure or timeout silently falls back to the template. The UI shows a small provenance badge ("words from…") so you can see which source produced the copy.

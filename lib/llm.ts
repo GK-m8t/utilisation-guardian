@@ -144,7 +144,7 @@ async function callOllama(prompt: string): Promise<string> {
 async function callHuggingFace(prompt: string): Promise<string> {
   const token = process.env.HF_API_TOKEN;
   if (!token) throw new Error("HF_API_TOKEN missing");
-  const model = process.env.HF_MODEL || "Qwen/Qwen2.5-7B-Instruct";
+  const model = process.env.HF_MODEL || "meta-llama/Llama-3.3-70B-Instruct";
   const res = await timedFetch("https://router.huggingface.co/v1/chat/completions", {
     method: "POST",
     headers: {
@@ -227,7 +227,8 @@ export async function explain(
     else if (provider === "frontier") text = await callFrontier(prompt);
     else return fallback;
 
-    text = text.trim();
+    // Reasoning-style open models may wrap deliberation in <think> tags — drop it.
+    text = text.replace(/<think>[\s\S]*?<\/think>/g, "").trim();
     // Guard: empty, rambling, or containing numbers we didn't supply → template.
     if (!text || text.length > 900 || violatesNumberGuard(text, facts)) {
       console.warn(

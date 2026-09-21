@@ -15,7 +15,7 @@ export async function GET(req: NextRequest) {
     provider,
     model:
       provider === "hf"
-        ? process.env.HF_MODEL || "Qwen/Qwen2.5-7B-Instruct (default)"
+        ? process.env.HF_MODEL || "meta-llama/Llama-3.3-70B-Instruct (default)"
         : provider === "ollama"
           ? process.env.OLLAMA_MODEL || "llama3.2 (default)"
           : provider === "frontier"
@@ -47,7 +47,7 @@ export async function GET(req: NextRequest) {
           Authorization: `Bearer ${process.env.HF_API_TOKEN}`,
         },
         body: JSON.stringify({
-          model: modelOverride || process.env.HF_MODEL || "Qwen/Qwen2.5-7B-Instruct",
+          model: modelOverride || process.env.HF_MODEL || "meta-llama/Llama-3.3-70B-Instruct",
           messages: [{ role: "user", content: "Reply with the single word: ok" }],
           max_tokens: 5,
         }),

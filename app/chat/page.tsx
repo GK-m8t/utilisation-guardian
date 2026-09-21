@@ -213,7 +213,13 @@ export default function ChatPage() {
       </div>
 
       {/* suggestions + composer */}
-      <div className="sticky bottom-0 flex flex-col gap-2.5 pb-1">
+      <div
+        className="sticky bottom-0 flex flex-col gap-2.5 pb-1 pt-3"
+        style={{
+          background:
+            "linear-gradient(to top, var(--color-ink-2) 78%, transparent)",
+        }}
+      >
         {turns.length < 3 && (
           <div className="flex flex-wrap gap-1.5">
             {suggestions.map((s) => (

@@ -69,6 +69,8 @@ const LOG_DOT: Record<ActionLogEntry["type"], string> = {
   "auto-paydown": "var(--color-gold)",
   "scheduled-paydown": "var(--color-gold)",
   "limit-increase": "var(--color-sage)",
+  "autopay-arm": "var(--color-sage)",
+  "autopay-payment": "var(--color-gold)",
   "policy-deny": "var(--color-alert-red)",
   "settings-change": "var(--color-faint)",
 };
@@ -78,6 +80,8 @@ const LOG_TITLE: Record<ActionLogEntry["type"], string> = {
   "auto-paydown": "Guardian acted on its own",
   "scheduled-paydown": "Scheduled a payment",
   "limit-increase": "Limit increase requested",
+  "autopay-arm": "Autopay armed",
+  "autopay-payment": "Autopay paid your bill",
   "policy-deny": "Guardrail blocked an action",
   "settings-change": "Autonomy updated",
 };

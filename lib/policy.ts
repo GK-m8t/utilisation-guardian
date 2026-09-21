@@ -1,5 +1,6 @@
 import { evaluate } from "./rulesEngine";
 import { inr } from "./format";
+import { primaryCard } from "./store";
 import type { AppState, PolicyRequest, PolicyVerdict } from "./types";
 
 /**
@@ -20,7 +21,8 @@ import type { AppState, PolicyRequest, PolicyVerdict } from "./types";
 export function checkPolicy(state: AppState, req: PolicyRequest): PolicyVerdict {
   const facts = evaluate(state);
   const checks: PolicyVerdict["checks"] = [];
-  const { settings, bank, card } = state;
+  const { settings, bank } = state;
+  const card = primaryCard(state);
 
   const deny = (
     code: PolicyVerdict["code"],
@@ -28,19 +30,21 @@ export function checkPolicy(state: AppState, req: PolicyRequest): PolicyVerdict 
     adaptedAmount?: number
   ): PolicyVerdict => ({ allow: false, code, reason, adaptedAmount, checks });
 
-  // 0. Guardian switched off → warn-only, no actions of any kind.
-  const guardianOn = settings.utilGuard !== "off";
+  // 0. The relevant per-action dial switched off → warn-only, no actions.
+  const dial = req.type === "autopay" ? settings.autopayGuard : settings.utilGuard;
+  const dialName = req.type === "autopay" ? "Autopay guard" : "Utilisation Guardian";
+  const guardianOn = dial !== "off";
   checks.push({
-    name: "Guardian enabled",
+    name: `${dialName} enabled`,
     pass: guardianOn,
     detail: guardianOn
-      ? `Autonomy is "${settings.utilGuard}"`
-      : "Utilisation Guardian is off — warn-only mode",
+      ? `Autonomy is "${dial}"`
+      : `${dialName} is off — warn-only mode`,
   });
   if (!guardianOn)
     return deny(
       "DENIED_GUARDIAN_OFF",
-      "The Guardian is set to off, so it only warns. Turn it to “Ask first” or “Autonomous” in settings to act."
+      `The ${dialName} is set to off, so it only warns. Turn it to “Ask first” or “Autonomous” to act.`
     );
 
   if (req.type === "limit-increase") {
@@ -61,6 +65,87 @@ export function checkPolicy(state: AppState, req: PolicyRequest): PolicyVerdict 
       allow: true,
       code: "ALLOWED",
       reason: "Consented limit-increase request. Reminder: this lowers your ratio going forward — it is not extra money to spend.",
+      checks,
+    };
+  }
+
+  if (req.type === "autopay") {
+    // Arming (amount undefined) is a setup action — always needs the user's yes.
+    if (req.amount === undefined) {
+      checks.push({
+        name: "Explicit consent",
+        pass: req.consent,
+        detail: req.consent
+          ? "User armed the autopay rule"
+          : "Arming autopay needs an explicit yes",
+      });
+      if (!req.consent)
+        return deny("DENIED_NO_CONSENT", "Arming autopay needs your explicit approval.");
+      return {
+        allow: true,
+        code: "ALLOWED",
+        reason:
+          "Autopay armed. It pays on the due date only while your safety cushion stays intact — otherwise it alerts instead.",
+        checks,
+      };
+    }
+
+    // Executing the due-date payment.
+    const payAmount = req.amount;
+    checks.push({
+      name: "Bank signal present",
+      pass: facts.bankDataAvailable,
+      detail: facts.bankDataAvailable
+        ? `Linked bank balance known (${facts.display.bankBalance})`
+        : "Bank balance unavailable — autopay never guesses",
+    });
+    if (!facts.bankDataAvailable)
+      return deny(
+        "DENIED_MISSING_SIGNAL",
+        "I can’t see your bank balance, so autopay won’t run — I’ve alerted you instead."
+      );
+
+    const bankBal = bank.balance as number;
+    const maxSafePay = Math.max(0, bankBal - bank.safetyBuffer);
+    const safe = payAmount <= maxSafePay;
+    checks.push({
+      name: "Safety buffer protected",
+      pass: safe,
+      detail: safe
+        ? `${inr(payAmount)} leaves ${inr(bankBal - payAmount)} ≥ ${inr(bank.safetyBuffer)} buffer`
+        : `${inr(payAmount)} would breach the ${inr(bank.safetyBuffer)} buffer — most I’ll pay is ${inr(maxSafePay)}`,
+    });
+    if (!safe)
+      return deny(
+        "DENIED_BREACHES_BUFFER",
+        `Paying ${inr(payAmount)} would dip into your ${inr(bank.safetyBuffer)} cushion. ${
+          maxSafePay > 0
+            ? `The most autopay will cover is ${inr(maxSafePay)} — the rest needs your call.`
+            : "Nothing can be paid safely right now — you’ve been alerted instead."
+        }`,
+        maxSafePay > 0 ? maxSafePay : undefined
+      );
+
+    const authorised = req.consent || settings.autopayGuard === "auto";
+    checks.push({
+      name: "Consent or autonomous autopay",
+      pass: authorised,
+      detail: req.consent
+        ? "User approved this payment"
+        : settings.autopayGuard === "auto"
+          ? "Autopay is autonomous — pays without asking while the buffer holds"
+          : "Autopay is in ask-first mode and no approval was given",
+    });
+    if (!authorised)
+      return deny(
+        "DENIED_NO_CONSENT",
+        "Autopay is set to ask first — approve the payment and I’ll make it."
+      );
+
+    return {
+      allow: true,
+      code: "ALLOWED",
+      reason: `Autopay of ${inr(payAmount)} — due date honoured, buffer protected.`,
       checks,
     };
   }
@@ -170,4 +255,52 @@ export function checkPolicy(state: AppState, req: PolicyRequest): PolicyVerdict 
     )} cap and above the safety buffer.`,
     checks,
   };
+}
+
+// ---------------------------------------------------------------------------
+// Chat guardrails (addendum §"Chat guardrails").
+// ---------------------------------------------------------------------------
+
+export function extractNumericTokens(text: string): string[] {
+  return [...text.matchAll(/\d[\d,]*(?:\.\d+)?/g)].map((m) =>
+    m[0].replaceAll(",", "")
+  );
+}
+
+const OUT_OF_SCOPE = [
+  /invest|stock|share market|mutual fund|sip\b|crypto|bitcoin|trading|ipo\b/i,
+  /legal advice|lawyer|court|sue\b|lawsuit/i,
+  /tax filing|income tax return|itr\b/i,
+  /recipe|movie|weather|joke|poem|essay|homework|translate/i,
+];
+
+/**
+ * Cheap pre-model scope screen: a credit guardian, not a general chatbot.
+ * Runs before any provider call — refusals cost zero tokens.
+ */
+export function screenChatMessage(text: string): { allowed: boolean; refusal?: string } {
+  if (OUT_OF_SCOPE.some((re) => re.test(text))) {
+    return {
+      allowed: false,
+      refusal:
+        "That’s outside what I do — I only help with your cards, score, and payments. For investments, legal or general questions, a different app is the right place. Anything credit-related, ask away.",
+    };
+  }
+  return { allowed: true };
+}
+
+/**
+ * Post-generation money guard: the model may only state numbers that a
+ * deterministic tool returned this turn (plus a small whitelist of harmless
+ * anchors like the 30% rule). Anything else fails verification.
+ */
+export function verifyChatAnswer(
+  text: string,
+  allowedNumbers: Set<string>
+): { ok: boolean; offending: string[] } {
+  const whitelist = new Set(["30", "100", "1", "2", "3"]);
+  const offending = extractNumericTokens(text).filter(
+    (n) => !allowedNumbers.has(n) && !whitelist.has(n)
+  );
+  return { ok: offending.length === 0, offending };
 }

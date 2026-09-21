@@ -170,7 +170,7 @@ export default function ConsentPage() {
       <section className="rise rounded-2xl border border-(--hairline) px-5 py-4" style={{ "--d": "0.3s" } as React.CSSProperties}>
         <p className="lbl">A longer-term fix</p>
         <h2 className="serif mt-1 text-[17px] text-cream">
-          Ask {state.card.issuer} to raise your limit to {facts.display.requestedLimit}
+          Ask {facts.display.issuer} to raise your limit to {facts.display.requestedLimit}
         </h2>
         <p className="mt-1.5 text-[13px] leading-relaxed text-mute">
           The same spending would report as {facts.display.utilisationAtNewLimit}{" "}
@@ -183,7 +183,7 @@ export default function ConsentPage() {
             <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
               <path d="m2.5 7.5 3 3 6-7" />
             </svg>
-            Request submitted to {state.card.issuer} — you’ll hear back in a few days.
+            Request submitted to {facts.display.issuer} — you’ll hear back in a few days.
           </p>
         ) : (
           <button

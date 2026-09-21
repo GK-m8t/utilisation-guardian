@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { checkPolicy } from "@/lib/policy";
 import { evaluate } from "@/lib/rulesEngine";
-import { appendLog, getState } from "@/lib/store";
+import { appendLog, getState, primaryCard } from "@/lib/store";
 import { dayLabel, inr, pct } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
@@ -39,14 +39,15 @@ export async function POST(req: NextRequest) {
   // --- Mocked bank debit (simulated latency, deterministic success) ---
   await sleep(1200);
 
-  state.card.balance -= amount;
+  const card = primaryCard(state);
+  card.balance -= amount;
   state.bank.balance = (state.bank.balance as number) - amount;
   state.demo.nudgedThisCycle = true;
 
-  const after = state.card.balance / state.card.limit;
+  const after = card.balance / card.limit;
 
   // Schedule the remainder (the affordability-adjusted split) if still above 30%.
-  const remaining = Math.max(0, state.card.balance - factsBefore.targetBalance30);
+  const remaining = Math.max(0, card.balance - factsBefore.targetBalance30);
   const dueDate = factsBefore.dueDate;
   if (remaining > 0) {
     state.scheduled.push({
@@ -63,7 +64,7 @@ export async function POST(req: NextRequest) {
     amount,
     before,
     after,
-    note: `Moved ${inr(amount)} from ${state.card.issuer} savings to your card to protect your score before the ${factsBefore.statementDate} statement. Utilisation ${pct(before)} → ${pct(after)}.${remaining > 0 ? ` Scheduled ${inr(remaining)} for ${dueDate}.` : ""}${initiator === "agent" ? " (Autonomous, within your cap.)" : ""}`,
+    note: `Moved ${inr(amount)} from ${card.issuer} savings to your card to protect your score before the ${factsBefore.statementDate} statement. Utilisation ${pct(before)} → ${pct(after)}.${remaining > 0 ? ` Scheduled ${inr(remaining)} for ${dueDate}.` : ""}${initiator === "agent" ? " (Autonomous, within your cap.)" : ""}`,
   });
 
   return NextResponse.json({

@@ -37,7 +37,7 @@ export async function POST(req: NextRequest) {
     date: dayLabel(state.demo.monthLabel, state.demo.today),
     type: "limit-increase",
     amount: facts.limitIncrease.requestedLimit,
-    note: `Requested a limit increase to ${inr(facts.limitIncrease.requestedLimit)} from ${state.card.issuer}. If approved, the same spend reports as ${facts.display.utilisationAtNewLimit} instead of ${facts.display.utilisation}. This is not extra money to spend — it lowers your reported ratio. Most issuer increases don’t trigger a hard enquiry.`,
+    note: `Requested a limit increase to ${inr(facts.limitIncrease.requestedLimit)} from ${facts.display.issuer}. If approved, the same spend reports as ${facts.display.utilisationAtNewLimit} instead of ${facts.display.utilisation}. This is not extra money to spend — it lowers your reported ratio. Most issuer increases don’t trigger a hard enquiry.`,
   });
 
   return NextResponse.json({

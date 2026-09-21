@@ -1,4 +1,5 @@
 import { dayLabel, inr, nextMonthLabel, pct } from "./format";
+import { primaryCard } from "./store";
 import type { AppState, GuardianFacts, Severity } from "./types";
 
 /**
@@ -28,8 +29,10 @@ export function severityFor(utilisation: number): Severity {
   return "none";
 }
 
+/** Evaluates the Utilisation Guardian moment for the primary card (Card A). */
 export function evaluate(state: AppState): GuardianFacts {
-  const { card, bank, score, demo } = state;
+  const { bank, score, demo } = state;
+  const card = primaryCard(state);
 
   const utilisation = card.balance / card.limit;
   const utilisationPct = Math.round(utilisation * 100);
@@ -111,6 +114,7 @@ export function evaluate(state: AppState): GuardianFacts {
     },
     // Pre-formatted strings: the LLM must repeat these verbatim, never derive.
     display: {
+      issuer: card.issuer,
       utilisation: pct(utilisation),
       limit: inr(card.limit),
       balance: inr(card.balance),
@@ -133,5 +137,6 @@ export function evaluate(state: AppState): GuardianFacts {
 
 /** Projected utilisation for an arbitrary paydown amount (used by UI + log). */
 export function utilisationAfterPaydown(state: AppState, amount: number): number {
-  return (state.card.balance - amount) / state.card.limit;
+  const card = primaryCard(state);
+  return (card.balance - amount) / card.limit;
 }

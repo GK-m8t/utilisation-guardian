@@ -32,7 +32,7 @@ export default function HomePage() {
           </p>
         </div>
         <span className="rounded-full border border-(--hairline) px-2.5 py-1 text-[11.5px] text-mute">
-          {state.card.issuer} card
+          {facts.display.issuer} card
         </span>
       </header>
 

@@ -18,12 +18,25 @@ export interface UserProfile {
 }
 
 export interface Card {
+  id: string; // "hdfc", "icici"
   issuer: string;
   limit: number;
   balance: number;
   statementDay: number;
   dueDay: number;
 }
+
+export interface Emi {
+  id: string;
+  name: string;
+  amount: number;
+  dueDay: number;
+  monthLabel: string;
+  /** what missing it costs — directional, plain words */
+  consequence: string;
+}
+
+export type Scenario = "simple" | "messy";
 
 export interface Bank {
   /** null = signal missing → policy layer forces propose-only */
@@ -40,6 +53,7 @@ export interface Score {
 export interface Settings {
   utilGuard: AutonomyLevel;
   autoCap: number;
+  autopayGuard: AutonomyLevel;
 }
 
 export type ActionType =
@@ -47,6 +61,8 @@ export type ActionType =
   | "scheduled-paydown"
   | "limit-increase"
   | "auto-paydown"
+  | "autopay-arm"
+  | "autopay-payment"
   | "policy-deny"
   | "settings-change";
 
@@ -77,10 +93,15 @@ export interface DemoClock {
 
 export interface AppState {
   user: UserProfile;
-  card: Card;
+  scenario: Scenario;
+  cards: Card[];
+  /** the card the Utilisation Guardian flow centres on (Card A) */
+  primaryCardId: string;
+  emis: Emi[];
   bank: Bank;
   score: Score;
   settings: Settings;
+  autopay: { armed: boolean; note: string | null };
   actionLog: ActionLogEntry[];
   scheduled: ScheduledPayment[];
   demo: DemoClock;
@@ -130,7 +151,7 @@ export interface GuardianFacts {
   display: Record<string, string>;
 }
 
-export type PolicyActionType = "paydown" | "limit-increase";
+export type PolicyActionType = "paydown" | "limit-increase" | "autopay";
 
 export interface PolicyRequest {
   type: PolicyActionType;
@@ -172,4 +193,33 @@ export type ExplainKind =
 export interface Explanation {
   text: string;
   source: LlmSource;
+}
+
+// ---- Grounded chat (the addendum's conversational layer) ----
+
+export interface ChatMessage {
+  role: "user" | "assistant";
+  content: string;
+}
+
+/** One deterministic tool invocation the model made while answering. */
+export interface ToolTrace {
+  tool: string;
+  args: Record<string, unknown>;
+  resultSummary: string;
+}
+
+/** A consent-gated action the model may PROPOSE from chat — never execute. */
+export interface ActionProposal {
+  type: "paydown" | "limit-increase";
+  cardId: string;
+  amount?: number;
+  label: string;
+}
+
+export interface ChatReply {
+  text: string;
+  source: LlmSource | "canned";
+  trace: ToolTrace[];
+  actionProposal?: ActionProposal;
 }

@@ -15,7 +15,7 @@ npm run dev
 
 Open http://localhost:3000. **No API key, no database, no configuration required** — the LLM layer degrades to a deterministic templated explanation, and state lives in memory (there's a "Reset the demo scenario" button under Activity).
 
-The seeded scenario: Aditya, 24, Bengaluru. HDFC card, ₹60,000 limit, ₹49,200 balance (**82% utilisation**), statement on the 5th, today is the 2nd. Bank balance ₹38,000, of which ₹15,000 is needed for essentials until salary. Score 761.
+The seeded scenario: George, 24, Bengaluru. HDFC card, ₹60,000 limit, ₹49,200 balance (**82% utilisation**), statement on the 30th, today is the 20th. Bank balance ₹38,000, of which ₹15,000 is needed for essentials until salary. Score 761.
 
 ## The architecture — three layers, one boundary
 
@@ -27,7 +27,7 @@ The seeded scenario: Aditya, 24, Bengaluru. HDFC card, ₹60,000 limit, ₹49,20
 | 2 — Language | `lib/llm.ts` | **Words only.** Takes the rules engine's pre-formatted facts and explains them plainly. Provider-agnostic; a post-generation guard discards any response containing a number the rules engine didn't supply. |
 | 3 — Policy gate | `lib/policy.ts` | **When NOT to act.** Consent, safety buffer, autonomy cap, missing-signal checks — run before *any* action executes. Every denial is logged. |
 
-The harm-aware recommendation this produces: getting under 30% needs **₹31,200**, but Aditya only has ₹38,000 with ₹15,000 needed for essentials. A naive agent would tell him to pay money he doesn't have. This one moves **₹23,000 now** and schedules **₹8,200 for the 22nd**, with his due amount.
+The harm-aware recommendation this produces: getting under 30% needs **₹31,200**, but George only has ₹38,000 with ₹15,000 needed for essentials. A naive agent would tell him to pay money he doesn't have. This one moves **₹23,000 now** and schedules **₹8,200 for Oct 22**, with his due amount.
 
 ### Guardrails (the "when not to act" rules)
 

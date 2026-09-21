@@ -8,7 +8,7 @@ import type { ActionLogEntry, AppState } from "./types";
 
 function seed(): AppState {
   return {
-    user: { name: "Aditya", age: 24, incomeBand: "₹55k/month", city: "Bengaluru" },
+    user: { name: "George", age: 24, incomeBand: "₹55k/month", city: "Bengaluru" },
     card: {
       issuer: "HDFC",
       limit: 60_000,

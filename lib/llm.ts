@@ -123,7 +123,12 @@ async function timedFetch(url: string, init: RequestInit): Promise<Response> {
   }
 }
 
-async function callOllama(prompt: string): Promise<string> {
+export interface ProviderMessage {
+  role: "system" | "user" | "assistant";
+  content: string;
+}
+
+async function callOllama(messages: ProviderMessage[], maxTokens: number): Promise<string> {
   const model = process.env.OLLAMA_MODEL || "llama3.2";
   const base = process.env.OLLAMA_BASE_URL || "http://localhost:11434";
   const res = await timedFetch(`${base}/api/chat`, {
@@ -131,9 +136,9 @@ async function callOllama(prompt: string): Promise<string> {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       model,
-      messages: [{ role: "user", content: prompt }],
+      messages,
       stream: false,
-      options: { temperature: 0.4 },
+      options: { temperature: 0.4, num_predict: maxTokens },
     }),
   });
   if (!res.ok) throw new Error(`ollama ${res.status}`);
@@ -141,7 +146,7 @@ async function callOllama(prompt: string): Promise<string> {
   return data.message?.content ?? "";
 }
 
-async function callHuggingFace(prompt: string): Promise<string> {
+async function callHuggingFace(messages: ProviderMessage[], maxTokens: number): Promise<string> {
   const token = process.env.HF_API_TOKEN;
   if (!token) throw new Error("HF_API_TOKEN missing");
   const model = process.env.HF_MODEL || "meta-llama/Llama-3.3-70B-Instruct";
@@ -151,20 +156,18 @@ async function callHuggingFace(prompt: string): Promise<string> {
       "Content-Type": "application/json",
       Authorization: `Bearer ${token}`,
     },
-    body: JSON.stringify({
-      model,
-      messages: [{ role: "user", content: prompt }],
-      max_tokens: 300,
-      temperature: 0.4,
-    }),
+    body: JSON.stringify({ model, messages, max_tokens: maxTokens, temperature: 0.4 }),
   });
   if (!res.ok) throw new Error(`hf ${res.status}`);
   const data = await res.json();
   return data.choices?.[0]?.message?.content ?? "";
 }
 
-async function callFrontier(prompt: string): Promise<string> {
+async function callFrontier(messages: ProviderMessage[], maxTokens: number): Promise<string> {
   if (process.env.ANTHROPIC_API_KEY) {
+    // Anthropic takes the system prompt as a top-level param.
+    const system = messages.filter((m) => m.role === "system").map((m) => m.content).join("\n");
+    const rest = messages.filter((m) => m.role !== "system");
     const res = await timedFetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
       headers: {
@@ -174,8 +177,9 @@ async function callFrontier(prompt: string): Promise<string> {
       },
       body: JSON.stringify({
         model: process.env.ANTHROPIC_MODEL || "claude-haiku-4-5-20251001",
-        max_tokens: 300,
-        messages: [{ role: "user", content: prompt }],
+        max_tokens: maxTokens,
+        system: system || undefined,
+        messages: rest,
       }),
     });
     if (!res.ok) throw new Error(`anthropic ${res.status}`);
@@ -191,8 +195,8 @@ async function callFrontier(prompt: string): Promise<string> {
       },
       body: JSON.stringify({
         model: process.env.OPENAI_MODEL || "gpt-4o-mini",
-        max_tokens: 300,
-        messages: [{ role: "user", content: prompt }],
+        max_tokens: maxTokens,
+        messages,
       }),
     });
     if (!res.ok) throw new Error(`openai ${res.status}`);
@@ -200,6 +204,26 @@ async function callFrontier(prompt: string): Promise<string> {
     return data.choices?.[0]?.message?.content ?? "";
   }
   throw new Error("no frontier key configured");
+}
+
+/**
+ * One raw model call to whichever provider LLM_PROVIDER selects.
+ * Returns null when no provider is configured — callers must degrade
+ * gracefully (template / canned). Throws on provider errors so callers
+ * can decide; reasoning <think> blocks are always stripped.
+ */
+export async function rawChat(
+  messages: ProviderMessage[],
+  maxTokens = 400
+): Promise<{ text: string; source: LlmSource } | null> {
+  const provider = process.env.LLM_PROVIDER as LlmSource | undefined;
+  if (!provider || provider === "template") return null;
+  let text: string;
+  if (provider === "ollama") text = await callOllama(messages, maxTokens);
+  else if (provider === "hf") text = await callHuggingFace(messages, maxTokens);
+  else if (provider === "frontier") text = await callFrontier(messages, maxTokens);
+  else return null;
+  return { text: text.replace(/<think>[\s\S]*?<\/think>/g, "").trim(), source: provider };
 }
 
 // ---------------------------------------------------------------------------
@@ -215,32 +239,24 @@ export async function explain(
     return { text: template(facts, kind), source: "template" };
   }
 
-  const provider = process.env.LLM_PROVIDER as LlmSource | undefined;
   const fallback: Explanation = { text: template(facts, kind), source: "template" };
-  if (!provider || provider === "template") return fallback;
 
   try {
-    const prompt = systemPrompt(facts, kind);
-    let text: string;
-    if (provider === "ollama") text = await callOllama(prompt);
-    else if (provider === "hf") text = await callHuggingFace(prompt);
-    else if (provider === "frontier") text = await callFrontier(prompt);
-    else return fallback;
-
-    // Reasoning-style open models may wrap deliberation in <think> tags — drop it.
-    text = text.replace(/<think>[\s\S]*?<\/think>/g, "").trim();
+    const result = await rawChat([{ role: "user", content: systemPrompt(facts, kind) }], 300);
+    if (!result) return fallback;
+    const { text, source } = result;
     // Guard: empty, rambling, or containing numbers we didn't supply → template.
     if (!text || text.length > 900 || violatesNumberGuard(text, facts)) {
       console.warn(
-        `[llm] ${provider} response discarded by output guard (empty/too long/unsupplied number) — serving template`
+        `[llm] ${source} response discarded by output guard (empty/too long/unsupplied number) — serving template`
       );
       return fallback;
     }
-    return { text, source: provider };
+    return { text, source };
   } catch (err) {
     // Never block the product on the model — but say why in the server logs.
     console.warn(
-      `[llm] ${provider} call failed — serving template:`,
+      `[llm] provider call failed — serving template:`,
       err instanceof Error ? err.message : err
     );
     return fallback;

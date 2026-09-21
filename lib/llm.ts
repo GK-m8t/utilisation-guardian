@@ -230,11 +230,18 @@ export async function explain(
     text = text.trim();
     // Guard: empty, rambling, or containing numbers we didn't supply → template.
     if (!text || text.length > 900 || violatesNumberGuard(text, facts)) {
+      console.warn(
+        `[llm] ${provider} response discarded by output guard (empty/too long/unsupplied number) — serving template`
+      );
       return fallback;
     }
     return { text, source: provider };
-  } catch {
-    // Never block the product on the model.
+  } catch (err) {
+    // Never block the product on the model — but say why in the server logs.
+    console.warn(
+      `[llm] ${provider} call failed — serving template:`,
+      err instanceof Error ? err.message : err
+    );
     return fallback;
   }
 }

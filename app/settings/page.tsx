@@ -59,10 +59,39 @@ export default function SettingsPage() {
           How much may I do on my own?
         </h1>
         <p className="mt-2 text-[13.5px] leading-relaxed text-mute">
-          This applies to one action only: pre-statement paydowns. You can change
-          it any time, and every move stays on the record.
+          One dial per action — pre-statement paydowns here, autopay below. You
+          can change them any time, and every move stays on the record.
         </p>
       </header>
+
+      {/* demo scenario */}
+      <section className="rise card px-5 py-4" style={{ "--d": "0.04s" } as React.CSSProperties}>
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <p className="text-[13.5px] text-cream">Demo scenario</p>
+            <p className="mt-0.5 text-[12px] leading-snug text-faint">
+              {state.scenario === "messy"
+                ? "Real life: two cards + an EMI competing for ₹23,000."
+                : "One card, one clear moment."}
+            </p>
+          </div>
+          <div className="flex shrink-0 rounded-xl border border-(--hairline) p-0.5" role="radiogroup" aria-label="Demo scenario">
+            {(["simple", "messy"] as const).map((s) => (
+              <button
+                key={s}
+                role="radio"
+                aria-checked={state.scenario === s}
+                onClick={() => state.scenario !== s && updateSettings({ scenario: s })}
+                className={`rounded-[10px] px-3 py-1.5 text-[12px] transition-colors ${
+                  state.scenario === s ? "bg-ink-4 text-gold" : "text-faint hover:text-cream-2"
+                }`}
+              >
+                {s === "simple" ? "One card" : "Real life"}
+              </button>
+            ))}
+          </div>
+        </div>
+      </section>
 
       <section
         className="rise flex flex-col gap-2"
@@ -135,6 +164,35 @@ export default function SettingsPage() {
           </p>
         </section>
       )}
+
+      {/* the second per-action dial */}
+      <section className="rise card px-5 py-4" style={{ "--d": "0.12s" } as React.CSSProperties}>
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <p className="text-[13.5px] text-cream">Autopay guard</p>
+            <p className="mt-0.5 text-[12px] leading-snug text-faint">
+              {state.autopay.armed ? "Armed — " : ""}pays the due date, never past your cushion.
+            </p>
+          </div>
+          <div className="flex shrink-0 rounded-xl border border-(--hairline) p-0.5" role="radiogroup" aria-label="Autopay autonomy">
+            {(["off", "ask", "auto"] as const).map((m) => (
+              <button
+                key={m}
+                role="radio"
+                aria-checked={state.settings.autopayGuard === m}
+                onClick={() =>
+                  state.settings.autopayGuard !== m && updateSettings({ autopayGuard: m })
+                }
+                className={`rounded-[10px] px-2.5 py-1.5 text-[12px] capitalize transition-colors ${
+                  state.settings.autopayGuard === m ? "bg-ink-4 text-gold" : "text-faint hover:text-cream-2"
+                }`}
+              >
+                {m}
+              </button>
+            ))}
+          </div>
+        </div>
+      </section>
 
       <section className="rise rounded-2xl border border-(--hairline) px-5 py-4" style={{ "--d": "0.16s" } as React.CSSProperties}>
         <p className="lbl">Whatever the dial says</p>

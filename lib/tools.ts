@@ -1,6 +1,6 @@
 import { dayLabel, inr, nextMonthLabel, pct } from "./format";
 import { severityFor } from "./rulesEngine";
-import { getCard, primaryCard } from "./store";
+import { getCard } from "./store";
 import type { ActionProposal, AppState, Card } from "./types";
 
 /**

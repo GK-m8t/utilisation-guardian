@@ -17,6 +17,8 @@ import type {
   Explanation,
   GuardianFacts,
   PolicyVerdict,
+  Scenario,
+  ToolTrace,
 } from "@/lib/types";
 
 interface ActionResult {
@@ -47,8 +49,14 @@ interface GuardianContextValue {
   updateSettings: (patch: {
     utilGuard?: AutonomyLevel;
     autoCap?: number;
+    autopayGuard?: AutonomyLevel;
+    scenario?: Scenario;
   }) => Promise<void>;
+  autopay: (intent: "arm" | "simulate-due-date", consent: boolean) => Promise<ActionResult>;
   resetDemo: () => Promise<void>;
+  /** last chat turn's tool trace — surfaced on the case-study rail */
+  lastChatTrace: ToolTrace[] | null;
+  reportChatTrace: (trace: ToolTrace[]) => void;
 }
 
 const GuardianContext = createContext<GuardianContextValue | null>(null);
@@ -67,6 +75,7 @@ export function GuardianProvider({ children }: { children: React.ReactNode }) {
   const [justActed, setJustActed] = useState<ActionLogEntry | null>(null);
   const [lastSource, setLastSource] = useState<Explanation["source"] | null>(null);
   const [autoActed, setAutoActed] = useState(false);
+  const [lastChatTrace, setLastChatTrace] = useState<ToolTrace[] | null>(null);
   const explainCache = useRef(new Map<string, Explanation>());
   const autoAttempted = useRef(false);
 
@@ -143,7 +152,12 @@ export function GuardianProvider({ children }: { children: React.ReactNode }) {
   );
 
   const updateSettings = useCallback(
-    async (patch: { utilGuard?: AutonomyLevel; autoCap?: number }) => {
+    async (patch: {
+      utilGuard?: AutonomyLevel;
+      autoCap?: number;
+      autopayGuard?: AutonomyLevel;
+      scenario?: Scenario;
+    }) => {
       await fetch("/api/settings", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
@@ -151,10 +165,43 @@ export function GuardianProvider({ children }: { children: React.ReactNode }) {
       });
       // settings change autonomy behaviour → allow the agent to re-evaluate
       autoAttempted.current = false;
+      if (patch.scenario) {
+        // scenario switch re-seeds everything
+        explainCache.current.clear();
+        setJustActed(null);
+        setLastVerdict(null);
+        setAutoActed(false);
+        setLastChatTrace(null);
+        try {
+          sessionStorage.removeItem("guardian-chat");
+        } catch {}
+      }
       await refresh();
     },
     [refresh]
   );
+
+  const autopay = useCallback(
+    async (intent: "arm" | "simulate-due-date", consent: boolean): Promise<ActionResult> => {
+      const res = await fetch("/api/actions/autopay", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ intent, consent }),
+      });
+      const data = await res.json();
+      if (data.verdict) setLastVerdict(data.verdict);
+      if (data.ok) {
+        if (data.entry) setJustActed(data.entry);
+        await refresh();
+      }
+      return data;
+    },
+    [refresh]
+  );
+
+  const reportChatTrace = useCallback((trace: ToolTrace[]) => {
+    setLastChatTrace(trace.length > 0 ? trace : null);
+  }, []);
 
   const resetDemo = useCallback(async () => {
     await fetch("/api/state", { method: "POST" });
@@ -163,6 +210,10 @@ export function GuardianProvider({ children }: { children: React.ReactNode }) {
     setJustActed(null);
     setLastVerdict(null);
     setAutoActed(false);
+    setLastChatTrace(null);
+    try {
+      sessionStorage.removeItem("guardian-chat");
+    } catch {}
     await refresh();
   }, [refresh]);
 
@@ -195,7 +246,10 @@ export function GuardianProvider({ children }: { children: React.ReactNode }) {
       paydown,
       limitIncrease,
       updateSettings,
+      autopay,
       resetDemo,
+      lastChatTrace,
+      reportChatTrace,
     }),
     [
       state,
@@ -210,7 +264,10 @@ export function GuardianProvider({ children }: { children: React.ReactNode }) {
       paydown,
       limitIncrease,
       updateSettings,
+      autopay,
       resetDemo,
+      lastChatTrace,
+      reportChatTrace,
     ]
   );
 

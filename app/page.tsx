@@ -101,36 +101,104 @@ export default function HomePage() {
           >
             See what’s happening
           </Link>
+          {state.scenario === "messy" && (
+            <Link
+              href="/chat"
+              className="btn-quiet mt-2 inline-flex w-full items-center justify-center px-4 py-2.5 text-[13.5px]"
+            >
+              Plan across everything you owe
+            </Link>
+          )}
         </section>
       ) : null}
 
-      {/* the rest of the guardian, honest about being stubs */}
+      {/* messy mode: the rest of what's owed this cycle */}
+      {state.scenario === "messy" && (
+        <section className="rise" style={{ "--d": "0.2s" } as React.CSSProperties}>
+          <p className="lbl mb-2.5">Also due this cycle</p>
+          <div className="flex flex-col gap-2">
+            {state.emis.map((emi) => (
+              <div
+                key={emi.id}
+                className="flex items-center justify-between rounded-2xl border px-4 py-3"
+                style={{ borderColor: "color-mix(in srgb, var(--color-alert-red) 30%, transparent)" }}
+              >
+                <div>
+                  <p className="text-[13.5px] text-cream">
+                    {emi.name}
+                    <span className="ml-2 text-[11px]" style={{ color: "var(--color-alert-red)" }}>
+                      hard due · {emi.monthLabel} {emi.dueDay}
+                    </span>
+                  </p>
+                  <p className="text-[12px] leading-snug text-faint">
+                    Missing this is worse than any utilisation hit.
+                  </p>
+                </div>
+                <p className="figure shrink-0 pl-3 text-[17px] text-cream">
+                  ₹{new Intl.NumberFormat("en-IN").format(emi.amount)}
+                </p>
+              </div>
+            ))}
+            {state.cards
+              .filter((c) => c.id !== state.primaryCardId)
+              .map((c) => {
+                const u = Math.round((c.balance / c.limit) * 100);
+                return (
+                  <div
+                    key={c.id}
+                    className="flex items-center justify-between rounded-2xl border border-(--hairline) px-4 py-3"
+                  >
+                    <div>
+                      <p className="text-[13.5px] text-cream">{c.issuer} card</p>
+                      <p className="text-[12px] text-faint">
+                        ₹{new Intl.NumberFormat("en-IN").format(c.balance)} of ₹
+                        {new Intl.NumberFormat("en-IN").format(c.limit)}
+                      </p>
+                    </div>
+                    <p className="figure shrink-0 pl-3 text-[17px]" style={{ color: u <= 30 ? "var(--color-sage)" : "var(--color-amber)" }}>
+                      {u}%
+                    </p>
+                  </div>
+                );
+              })}
+          </div>
+        </section>
+      )}
+
+      {/* the rest of the guardian */}
       <section className="rise" style={{ "--d": "0.24s" } as React.CSSProperties}>
         <p className="lbl mb-2.5">Also watching over you</p>
         <div className="flex flex-col gap-2">
-          {[
-            {
-              name: "Autopay guard",
-              desc: "Never miss a due date, even when salary is late.",
-            },
-            {
-              name: "Dispute watch",
-              desc: "Spots charges that don’t look like you.",
-            },
-          ].map((f) => (
-            <div
-              key={f.name}
-              className="flex items-center justify-between rounded-2xl border border-(--hairline) px-4 py-3 opacity-55"
-            >
-              <div>
-                <p className="text-[13.5px] text-cream-2">{f.name}</p>
-                <p className="text-[12px] text-faint">{f.desc}</p>
-              </div>
-              <span className="shrink-0 rounded-full border border-(--hairline) px-2 py-0.5 text-[10.5px] text-faint">
-                coming soon
-              </span>
+          <Link
+            href="/autopay"
+            className="card flex items-center justify-between px-4 py-3 transition-opacity hover:opacity-90"
+          >
+            <div>
+              <p className="text-[13.5px] text-cream">Autopay guard</p>
+              <p className="text-[12px] text-faint">
+                Never miss a due date — pays only while your cushion holds.
+              </p>
             </div>
-          ))}
+            <span
+              className="shrink-0 rounded-full border px-2 py-0.5 text-[10.5px]"
+              style={
+                state.autopay.armed
+                  ? { borderColor: "color-mix(in srgb, var(--color-sage) 40%, transparent)", color: "var(--color-sage)" }
+                  : { borderColor: "var(--hairline)", color: "var(--color-faint)" }
+              }
+            >
+              {state.autopay.armed ? "armed" : state.settings.autopayGuard === "off" ? "off" : "set up"}
+            </span>
+          </Link>
+          <div className="flex items-center justify-between rounded-2xl border border-(--hairline) px-4 py-3 opacity-55">
+            <div>
+              <p className="text-[13.5px] text-cream-2">Dispute watch</p>
+              <p className="text-[12px] text-faint">Spots charges that don’t look like you.</p>
+            </div>
+            <span className="shrink-0 rounded-full border border-(--hairline) px-2 py-0.5 text-[10.5px] text-faint">
+              coming soon
+            </span>
+          </div>
         </div>
       </section>
     </div>

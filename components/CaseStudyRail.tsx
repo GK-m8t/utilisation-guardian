@@ -8,9 +8,9 @@ import { useGuardian } from "./GuardianProvider";
  * the words came from; layer 3 shows the checks the last action ran through.
  */
 export function CaseStudyRail() {
-  const { facts, lastVerdict, lastSource } = useGuardian();
+  const { state, facts, lastVerdict, lastSource, lastChatTrace } = useGuardian();
 
-  if (!facts) return null;
+  if (!facts || !state) return null;
 
   const sourceLabel =
     lastSource === null
@@ -52,10 +52,19 @@ export function CaseStudyRail() {
             2 — Language layer <span className="text-faint">LLM, swappable</span>
           </h3>
           <p className="mt-1.5 text-[12.5px] leading-relaxed text-mute">
-            Turns those facts into plain words. Current source:{" "}
+            Turns facts into plain words and orchestrates chat — but knows no
+            numbers itself. Current source:{" "}
             <span className="text-gold">{sourceLabel}</span>. Open-model-first by
             design — cost at scale and RBI data locality.
           </p>
+          {lastChatTrace && (
+            <div className="mt-2 border-t border-(--hairline) pt-2">
+              <p className="text-[11px] italic text-faint">last chat answer grounded via:</p>
+              <p className="mt-0.5 text-[11.5px] leading-relaxed text-cream-2">
+                {lastChatTrace.map((t) => t.tool).join(" → ")}
+              </p>
+            </div>
+          )}
         </section>
 
         <section className="card p-4">

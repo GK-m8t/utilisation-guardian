@@ -194,11 +194,16 @@ export async function runChat(state: AppState, messages: ChatMessage[]): Promise
 // wording. This is what runs with zero LLM configuration.
 // ---------------------------------------------------------------------------
 
+// Canned answers read dynamic tool JSON — a typed escape hatch is cleaner
+// than casting every field.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type ToolJson = Record<string, any>;
+
 function cannedAnswer(state: AppState, question: string): ChatReply {
   const ctx: TurnContext = { trace: [], allowed: new Set() };
   const q = question.toLowerCase();
   const call = (name: string, args: Record<string, unknown> = {}) =>
-    execTool(state, name, args, ctx).result as Record<string, any>;
+    execTool(state, name, args, ctx).result as ToolJson;
 
   const reply = (text: string): ChatReply => ({
     text,
@@ -245,8 +250,7 @@ function cannedAnswer(state: AppState, question: string): ChatReply {
 
   if (/minimum|min due|min-due/.test(q)) {
     const obligations = call("getObligations");
-    const card = obligations.obligations.find((o: any) => o.kind === "card");
-    const timing = call("getStatementTiming", { cardId: card.cardId });
+    const card = obligations.obligations.find((o: ToolJson) => o.kind === "card");
     return reply(
       `Paying the minimum (${card.minimumDue}) keeps you out of "late" territory, but it doesn't help the snapshot: on ${card.statementDate} the bureau still sees ${card.utilisation}, and interest starts compounding on the rest. Minimum due is a floor for emergencies, not a strategy.`
     );
@@ -257,7 +261,7 @@ function cannedAnswer(state: AppState, question: string): ChatReply {
     return reply(
       `Here's the order that protects you most with the ${plan.deployableToday} you can safely move: ${formatSteps(plan)}${
         plan.leftUnpaidDeliberately?.length
-          ? ` ${plan.leftUnpaidDeliberately.map((u: any) => `${u.card} stays untouched at ${u.utilisation} — ${u.why}.`).join(" ")}`
+          ? ` ${plan.leftUnpaidDeliberately.map((u: ToolJson) => `${u.card} stays untouched at ${u.utilisation} — ${u.why}.`).join(" ")}`
           : ""
       }`
     );
@@ -270,8 +274,8 @@ function cannedAnswer(state: AppState, question: string): ChatReply {
   );
 }
 
-function formatSteps(plan: Record<string, any>): string {
-  return (plan.steps as any[])
+function formatSteps(plan: ToolJson): string {
+  return (plan.steps as ToolJson[])
     .map((s) => `${s.order}) ${s.amount} to ${s.pay} — ${s.why}.`)
     .join(" ");
 }

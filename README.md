@@ -1,36 +1,93 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Utilisation Guardian
 
-## Getting Started
+A youth credit copilot that takes **real, permissioned agentic action** to protect a first-time cardholder's credit score — before the statement cuts, not after. Proof-of-concept for the Oolka AI PM case study: it feels like a real fintech app, but every external system (bank, bureau, issuer) is mocked.
 
-First, run the development server:
+## The insight
+
+First-time cardholders believe *"I pay my bill in full, so my score is safe."* It's false. Bureaus snapshot the card balance on the **statement generation date**, not after payment — so someone who spends heavily and pays in full a week later is still reported at high utilisation, quietly costing 20–40 points. Almost nobody knows this. It's preventable by an agent that acts **before** the statement date.
+
+## Run it
 
 ```bash
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open http://localhost:3000. **No API key, no database, no configuration required** — the LLM layer degrades to a deterministic templated explanation, and state lives in memory (there's a "Reset the demo scenario" button under Activity).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+The seeded scenario: Aditya, 24, Bengaluru. HDFC card, ₹60,000 limit, ₹49,200 balance (**82% utilisation**), statement on the 5th, today is the 2nd. Bank balance ₹38,000, of which ₹15,000 is needed for essentials until salary. Score 761.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## The architecture — three layers, one boundary
 
-## Learn More
+> Use the model for what it's good at (language, empathy, explanation) and rules for what it must never get wrong (financial math, thresholds, actions). **That boundary is the product design.**
 
-To learn more about Next.js, take a look at the following resources:
+| Layer | File | Owns |
+|---|---|---|
+| 1 — Rules engine | `lib/rulesEngine.ts` | **Every number.** Utilisation, the paydown-to-30% amount, affordability vs. the safety buffer, severity tiers, timing, the directional score-impact band. Deterministic TypeScript — the LLM never does arithmetic. |
+| 2 — Language | `lib/llm.ts` | **Words only.** Takes the rules engine's pre-formatted facts and explains them plainly. Provider-agnostic; a post-generation guard discards any response containing a number the rules engine didn't supply. |
+| 3 — Policy gate | `lib/policy.ts` | **When NOT to act.** Consent, safety buffer, autonomy cap, missing-signal checks — run before *any* action executes. Every denial is logged. |
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+The harm-aware recommendation this produces: getting under 30% needs **₹31,200**, but Aditya only has ₹38,000 with ₹15,000 needed for essentials. A naive agent would tell him to pay money he doesn't have. This one moves **₹23,000 now** and schedules **₹8,200 for the 22nd**, with his due amount.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+### Guardrails (the "when not to act" rules)
 
-## Deploy on Vercel
+- Never execute without consent — unless autonomy is granted **and** the amount is within the user's cap **and** above the safety buffer.
+- Never recommend a paydown that breaches the essentials buffer; adapt or split instead.
+- Missing bank signal → propose-only. Never guess with someone's money.
+- A limit increase is never framed as "more to spend."
+- Score impact is always labelled a directional estimate, never a promise.
+- Out-of-scope requests are refused cheaply — no model call at all.
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+Hard invariant: **zero un-consented actions.** Verifiable in `lib/policy.ts` — every action route passes through `checkPolicy()` and there is no other code path that moves money.
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## The LLM layer: open-model-first
+
+Set `LLM_PROVIDER` in `.env.local` (see `.env.example`):
+
+| Provider | Setup | Notes |
+|---|---|---|
+| *(unset)* | none | Deterministic templated explanation. The app never blocks on a model. |
+| `ollama` | [Install Ollama](https://ollama.com), `ollama pull llama3.2` | **Recommended default.** Local open model: keyless, offline, free. |
+| `hf` | `HF_API_TOKEN` | Hugging Face Inference API (default `Qwen/Qwen2.5-7B-Instruct`). The easy way to get a live open model on a Vercel deploy. |
+| `frontier` | `ANTHROPIC_API_KEY` or `OPENAI_API_KEY` | Frontier API, for comparison. |
+
+All providers sit behind one interface (`explain(facts, kind)`) — swapping is one env var. Any failure or timeout silently falls back to the template. The UI shows a small provenance badge ("words from…") so you can see which source produced the copy.
+
+**Why open-model-first for production:** this workload is high-volume, short-form, vernacular explanation — exactly what a small self-hosted open model does well. At scale, per-call frontier pricing dominates unit economics; and the payloads contain financial PII, where RBI data-localisation expectations make keeping inference in-country and in-house the safer default. A frontier API remains a fallback for rare hard cases only.
+
+## Screens
+
+1. **Home** — utilisation dial (the 30% safe line is a physical notch on the gauge), proactive alert before the statement date.
+2. **Guardian explainer** — the statement-snapshot timeline, plain-language why, severity, directional impact.
+3. **Affordability & consent** — the split plan, the cushion made visible, one explicit yes per action.
+4. **Confirmation + activity log** — "here's exactly what I did," the 82% → 44% dial morph, every action (and every guardrail denial) in plain words.
+5. **Autonomy settings** — the trust dial: off / ask first / autonomous with a user-set cap.
+
+On wide screens, a side rail narrates the architecture live: the numbers the rules engine computed, where the words came from, and the checks the last action passed or failed.
+
+## API surface
+
+- `GET /api/state` — full snapshot (`POST` resets the demo)
+- `POST /api/guardian/evaluate` — rules engine: detection, amounts, severity, impact band
+- `POST /api/guardian/explain` — LLM layer (`{ kind: "alert" | "recommendation" | "action-summary" | "out-of-scope" }`)
+- `POST /api/actions/paydown` — mocked bank debit; policy-gated
+- `POST /api/actions/limit-increase` — mocked issuer request; policy-gated
+- `PATCH /api/settings` — autonomy level + cap
+
+External calls are mocked with simulated latency and deterministic outcomes.
+
+## Deploying
+
+Standard Next.js — deploys to Vercel free tier as-is (`vercel` or import the repo). State is in-memory per serverless instance, which is fine for a demo; the reset button reseeds after cold starts. Optionally set `LLM_PROVIDER=hf` + `HF_API_TOKEN` (or `frontier` + a key) in the project's environment variables for live explanations.
+
+## Success metrics (for the case study)
+
+- **Activation:** % enabling the Guardian; autonomy-level mix.
+- **Primary outcome:** average reported utilisation down; % of statements cutting under 30%.
+- **North-star:** score improvement over 3–6 months, Guardian users vs. holdout control.
+- **Trust:** consent-grant rate; opt-out rate.
+- **Guardrail health:** % of recommendations flagged unaffordable and adapted; **zero un-consented actions** as a hard invariant.
+
+## Scope
+
+One flow only (the Utilisation Guardian). Autopay and disputes appear as disabled stubs for context. No auth, no real integrations, no database — prototype polish over breadth.

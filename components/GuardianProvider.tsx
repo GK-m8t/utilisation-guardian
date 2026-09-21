@@ -51,6 +51,8 @@ interface GuardianContextValue {
     autoCap?: number;
     autopayGuard?: AutonomyLevel;
     scenario?: Scenario;
+    bankBalance?: number;
+    safetyBuffer?: number;
   }) => Promise<void>;
   autopay: (intent: "arm" | "simulate-due-date", consent: boolean) => Promise<ActionResult>;
   resetDemo: () => Promise<void>;
@@ -157,6 +159,8 @@ export function GuardianProvider({ children }: { children: React.ReactNode }) {
       autoCap?: number;
       autopayGuard?: AutonomyLevel;
       scenario?: Scenario;
+      bankBalance?: number;
+      safetyBuffer?: number;
     }) => {
       await fetch("/api/settings", {
         method: "PATCH",
@@ -165,6 +169,10 @@ export function GuardianProvider({ children }: { children: React.ReactNode }) {
       });
       // settings change autonomy behaviour → allow the agent to re-evaluate
       autoAttempted.current = false;
+      if (patch.bankBalance !== undefined || patch.safetyBuffer !== undefined) {
+        // money inputs change every derived number → stale explanations out
+        explainCache.current.clear();
+      }
       if (patch.scenario) {
         // scenario switch re-seeds everything
         explainCache.current.clear();

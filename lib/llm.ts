@@ -40,6 +40,9 @@ function template(facts: GuardianFacts, kind: ExplainKind): string {
       if (!facts.bankDataAvailable) {
         return `Your statement cuts in ${d.daysUntilStatement} and you’re using ${d.utilisation} of your limit — the bureau records that snapshot even if you pay in full later, which can cost you roughly ${d.scoreImpactBand} (an estimate, not a promise). Getting under 30% means paying ${d.paydownTo30}. I can’t see your bank balance right now, so I won’t suggest moving money on a guess — reconnect your bank and I’ll work out a safe amount.`;
       }
+      if (facts.affordableNow <= 0) {
+        return `Your statement cuts in ${d.daysUntilStatement} and you’re using ${d.utilisation} of your limit — the bureau records that snapshot even if you pay in full later, which can cost you roughly ${d.scoreImpactBand} (an estimate, not a promise). Getting under 30% means paying ${d.paydownTo30}, but right now everything in your bank is spoken for by your ${d.safetyBuffer} essentials cushion — so I won’t suggest moving money you need to live on. The moment salary lands, I’ll flag the safe amount.`;
+      }
       if (!facts.splitRequired) {
         return `Your statement cuts in ${d.daysUntilStatement}. You’re using ${d.utilisation} of your limit, and the bureau records that snapshot even though you’ll pay it off later — that can cost you roughly ${d.scoreImpactBand} (an estimate, not a promise). Paying ${d.paydownTo30} now gets you under 30% and keeps your ${d.safetyBuffer} cushion intact. Want me to do it?`;
       }

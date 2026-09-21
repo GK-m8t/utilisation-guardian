@@ -28,8 +28,10 @@ const LEVELS: {
 
 export default function SettingsPage() {
   const { state, facts, loading, updateSettings } = useGuardian();
-  // null = untouched → show the stored cap
+  // null = untouched → show the stored value
   const [cap, setCap] = useState<number | null>(null);
+  const [bankDraft, setBankDraft] = useState<number | null>(null);
+  const [bufferDraft, setBufferDraft] = useState<number | null>(null);
   const [saving, setSaving] = useState<AutonomyLevel | null>(null);
 
   if (loading || !state || !facts) return null;
@@ -50,6 +52,18 @@ export default function SettingsPage() {
   }
 
   const inr = (n: number) => `₹${new Intl.NumberFormat("en-IN").format(n)}`;
+
+  const bankValue = bankDraft ?? state.bank.balance ?? 0;
+  const bufferValue = bufferDraft ?? state.bank.safetyBuffer;
+  const deployablePreview = Math.max(0, bankValue - bufferValue);
+
+  async function commitMoney() {
+    const patch: { bankBalance?: number; safetyBuffer?: number } = {};
+    if (bankDraft !== null && bankDraft !== state?.bank.balance) patch.bankBalance = bankDraft;
+    if (bufferDraft !== null && bufferDraft !== state?.bank.safetyBuffer)
+      patch.safetyBuffer = bufferDraft;
+    if (Object.keys(patch).length > 0) await updateSettings(patch);
+  }
 
   return (
     <div className="flex flex-col gap-6">
@@ -91,6 +105,62 @@ export default function SettingsPage() {
             ))}
           </div>
         </div>
+      </section>
+
+      {/* your money — every recommendation re-derives from these two numbers */}
+      <section className="rise card px-5 py-4" style={{ "--d": "0.06s" } as React.CSSProperties}>
+        <p className="text-[13.5px] text-cream">Your money</p>
+        <p className="mt-0.5 text-[12px] leading-snug text-faint">
+          In the real product these come from your linked bank and salary
+          pattern. Change them here and watch every recommendation re-plan.
+        </p>
+
+        <div className="mt-3.5 flex items-baseline justify-between">
+          <p className="text-[13px] text-mute">Bank balance today</p>
+          <p className="figure text-[19px] text-cream">{inr(bankValue)}</p>
+        </div>
+        <input
+          type="range"
+          min={0}
+          max={100000}
+          step={1000}
+          value={bankValue}
+          onChange={(e) => setBankDraft(Number(e.target.value))}
+          onPointerUp={commitMoney}
+          onKeyUp={commitMoney}
+          aria-label="Bank balance"
+          className="mt-1.5 w-full accent-(--color-gold)"
+        />
+
+        <div className="mt-3 flex items-baseline justify-between">
+          <p className="text-[13px] text-mute">Essentials until salary — the cushion</p>
+          <p className="figure text-[19px]" style={{ color: "var(--color-sage)" }}>
+            {inr(bufferValue)}
+          </p>
+        </div>
+        <input
+          type="range"
+          min={0}
+          max={40000}
+          step={1000}
+          value={bufferValue}
+          onChange={(e) => setBufferDraft(Number(e.target.value))}
+          onPointerUp={commitMoney}
+          onKeyUp={commitMoney}
+          aria-label="Essentials cushion until salary"
+          className="mt-1.5 w-full accent-(--color-sage)"
+        />
+
+        <p className="mt-3 border-t border-(--hairline) pt-2.5 text-[12.5px] leading-relaxed text-mute">
+          {deployablePreview > 0 ? (
+            <>
+              <span className="figure text-[14px] text-gold">{inr(deployablePreview)}</span>{" "}
+              can move safely today — the Guardian plans within this, never past it.
+            </>
+          ) : (
+            "Nothing can move safely right now — the Guardian will only warn and propose, not act."
+          )}
+        </p>
       </section>
 
       <section

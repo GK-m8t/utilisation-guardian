@@ -44,6 +44,23 @@ export async function PATCH(req: NextRequest) {
     changes.push(`auto-move cap → ${inr(state.settings.autoCap)}`);
   }
 
+  // "Your money" inputs — the rules engine re-derives everything from these.
+  const bankBalance = Number(body?.bankBalance);
+  if (Number.isFinite(bankBalance) && bankBalance >= 0 && bankBalance !== state.bank.balance) {
+    state.bank.balance = Math.round(bankBalance);
+    changes.push(`bank balance → ${inr(state.bank.balance)}`);
+  }
+
+  const safetyBuffer = Number(body?.safetyBuffer);
+  if (
+    Number.isFinite(safetyBuffer) &&
+    safetyBuffer >= 0 &&
+    safetyBuffer !== state.bank.safetyBuffer
+  ) {
+    state.bank.safetyBuffer = Math.round(safetyBuffer);
+    changes.push(`essentials cushion → ${inr(state.bank.safetyBuffer)}`);
+  }
+
   if (changes.length > 0) {
     appendLog({
       date: dayLabel(state.demo.monthLabel, state.demo.today),

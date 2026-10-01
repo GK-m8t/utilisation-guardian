@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import Link from "next/link";
 import { useGuardian } from "@/components/GuardianProvider";
 import { Spinner } from "@/components/ui";
 import type { ActionProposal, LlmSource, ToolTrace } from "@/lib/types";
@@ -82,12 +81,13 @@ function TraceLine({ trace }: { trace: ToolTrace[] }) {
 }
 
 export default function ChatPage() {
-  const { state, loading, reportChatTrace } = useGuardian();
+  const { state, loading, reportChatTrace, openSheet } = useGuardian();
   const [turns, setTurns] = useState<Turn[]>([]);
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
   const endRef = useRef<HTMLDivElement>(null);
   const hydrated = useRef(false);
+  const pendingPrefill = useRef<string | null>(null);
 
   // Session memory: history survives tab switches (sessionStorage), cleared
   // on scenario change / reset. Production extension: persistent memory.
@@ -100,6 +100,12 @@ export default function ChatPage() {
       // eslint-disable-next-line react-hooks/set-state-in-effect
       if (saved) setTurns(JSON.parse(saved));
     } catch {}
+    // handoff from other screens: /chat?q=…
+    const q = new URLSearchParams(window.location.search).get("q");
+    if (q) {
+      pendingPrefill.current = q;
+      window.history.replaceState(null, "", "/chat");
+    }
   }, []);
 
   useEffect(() => {
@@ -109,6 +115,15 @@ export default function ChatPage() {
     } catch {}
     endRef.current?.scrollIntoView({ block: "end" });
   }, [turns]);
+
+  // fire the handoff question once state is ready
+  useEffect(() => {
+    if (!state || busy || !pendingPrefill.current) return;
+    const q = pendingPrefill.current;
+    pendingPrefill.current = null;
+    send(q);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state]);
 
   if (loading || !state) return null;
 
@@ -187,12 +202,18 @@ export default function ChatPage() {
                 {t.content}
               </p>
               {t.actionProposal && (
-                <Link
-                  href="/consent"
+                <button
+                  onClick={() =>
+                    openSheet(
+                      t.actionProposal!.type === "limit-increase"
+                        ? { type: "limit-increase" }
+                        : { type: "paydown", amount: t.actionProposal!.amount }
+                    )
+                  }
                   className="btn-gold mt-3 inline-flex w-full items-center justify-center px-4 py-2.5 text-[13.5px]"
                 >
                   {t.actionProposal.label}
-                </Link>
+                </button>
               )}
               {t.trace && <TraceLine trace={t.trace} />}
               {t.source && (
@@ -221,13 +242,13 @@ export default function ChatPage() {
         }}
       >
         {turns.length < 3 && (
-          <div className="flex flex-wrap gap-1.5">
+          <div className="-mx-5 flex gap-1.5 overflow-x-auto px-5 pb-0.5 [scrollbar-width:none]">
             {suggestions.map((s) => (
               <button
                 key={s}
                 onClick={() => send(s)}
                 disabled={busy}
-                className="btn-quiet rounded-full px-3 py-1.5 text-left text-[12px] leading-snug"
+                className="btn-quiet shrink-0 whitespace-nowrap rounded-full px-3 py-1.5 text-[12px]"
               >
                 {s}
               </button>

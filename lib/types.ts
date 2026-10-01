@@ -93,6 +93,8 @@ export interface DemoClock {
 
 export interface AppState {
   user: UserProfile;
+  /** first-run setup completed (bank linked, cushion set, autonomy chosen) */
+  onboarded: boolean;
   scenario: Scenario;
   cards: Card[];
   /** the card the Utilisation Guardian flow centres on (Card A) */

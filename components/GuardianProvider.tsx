@@ -53,13 +53,20 @@ interface GuardianContextValue {
     scenario?: Scenario;
     bankBalance?: number;
     safetyBuffer?: number;
+    onboarded?: boolean;
   }) => Promise<void>;
   autopay: (intent: "arm" | "simulate-due-date", consent: boolean) => Promise<ActionResult>;
   resetDemo: () => Promise<void>;
   /** last chat turn's tool trace — surfaced on the case-study rail */
   lastChatTrace: ToolTrace[] | null;
   reportChatTrace: (trace: ToolTrace[]) => void;
+  /** the consent bottom sheet — the only surface that moves money */
+  sheet: SheetState;
+  openSheet: (sheet: NonNullable<SheetState>) => void;
+  closeSheet: () => void;
 }
+
+export type SheetState = { type: "paydown"; amount?: number } | { type: "limit-increase" } | null;
 
 const GuardianContext = createContext<GuardianContextValue | null>(null);
 
@@ -78,8 +85,12 @@ export function GuardianProvider({ children }: { children: React.ReactNode }) {
   const [lastSource, setLastSource] = useState<Explanation["source"] | null>(null);
   const [autoActed, setAutoActed] = useState(false);
   const [lastChatTrace, setLastChatTrace] = useState<ToolTrace[] | null>(null);
+  const [sheet, setSheet] = useState<SheetState>(null);
   const explainCache = useRef(new Map<string, Explanation>());
   const autoAttempted = useRef(false);
+
+  const openSheet = useCallback((s: NonNullable<SheetState>) => setSheet(s), []);
+  const closeSheet = useCallback(() => setSheet(null), []);
 
   const refresh = useCallback(async () => {
     const [s, f] = await Promise.all([
@@ -161,6 +172,7 @@ export function GuardianProvider({ children }: { children: React.ReactNode }) {
       scenario?: Scenario;
       bankBalance?: number;
       safetyBuffer?: number;
+      onboarded?: boolean;
     }) => {
       await fetch("/api/settings", {
         method: "PATCH",
@@ -258,6 +270,9 @@ export function GuardianProvider({ children }: { children: React.ReactNode }) {
       resetDemo,
       lastChatTrace,
       reportChatTrace,
+      sheet,
+      openSheet,
+      closeSheet,
     }),
     [
       state,
@@ -276,6 +291,9 @@ export function GuardianProvider({ children }: { children: React.ReactNode }) {
       resetDemo,
       lastChatTrace,
       reportChatTrace,
+      sheet,
+      openSheet,
+      closeSheet,
     ]
   );
 

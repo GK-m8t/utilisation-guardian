@@ -15,13 +15,12 @@ export default function HomePage() {
     );
   }
 
-  const guardOff = state.settings.utilGuard === "off";
   const acted = state.demo.nudgedThisCycle;
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-col gap-5">
       {/* header */}
-      <header className="rise flex items-baseline justify-between" style={{ "--d": "0s" } as React.CSSProperties}>
+      <header className="rise flex items-start justify-between" style={{ "--d": "0s" } as React.CSSProperties}>
         <div>
           <h1 className="serif text-[24px] leading-tight text-cream">
             Good evening, {state.user.name}
@@ -31,153 +30,117 @@ export default function HomePage() {
             <span className="figure text-cream-2">{state.score.current}</span>
           </p>
         </div>
-        <span className="rounded-full border border-(--hairline) px-2.5 py-1 text-[11.5px] text-mute">
-          {facts.display.issuer} card
-        </span>
+        <Link
+          href="/settings"
+          aria-label="Settings"
+          className="mt-1 rounded-full border border-(--hairline) p-2 text-faint transition-colors hover:text-cream-2"
+        >
+          <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+            <path d="M4 6.5h12M4 13.5h12" />
+            <circle cx="12.5" cy="6.5" r="2" fill="var(--color-ink)" />
+            <circle cx="7.5" cy="13.5" r="2" fill="var(--color-ink)" />
+          </svg>
+        </Link>
       </header>
 
       {/* the dial */}
       <section
-        className="rise flex flex-col items-center pt-1"
+        className="rise flex flex-col items-center"
         style={{ "--d": "0.08s" } as React.CSSProperties}
         aria-label="Card utilisation"
       >
         <UtilisationDial
           value={facts.utilisation}
-          sublabel={`${facts.display.balance} of your ${facts.display.limit} limit`}
-          caption={`statement cuts ${facts.statementDate}`}
+          sublabel={`${facts.display.balance} of ${facts.display.limit} · ${facts.display.issuer}`}
+          caption={`statement ${facts.statementDate}`}
         />
       </section>
 
       {/* the guardian moment */}
       {acted ? (
-        <section
-          className="card rise px-5 py-4"
-          style={{ "--d": "0.16s", borderColor: "color-mix(in srgb, var(--color-sage) 30%, transparent)" } as React.CSSProperties}
-        >
+        <section className="card rise px-5 py-4" style={{ "--d": "0.16s" } as React.CSSProperties}>
           <p className="lbl" style={{ color: "var(--color-sage)" }}>
             Handled
           </p>
-          <h2 className="serif mt-1 text-[19px] leading-snug text-cream">
-            {autoActed
-              ? "Your Guardian already acted — within your cap."
-              : "Your statement is protected for this cycle."}
+          <h2 className="serif mt-1 text-[18px] leading-snug text-cream">
+            {autoActed ? "I acted — within your cap." : "This statement is protected."}
           </h2>
-          <p className="mt-1.5 text-[13.5px] leading-relaxed text-mute">
-            The move is on record, in plain words, in your activity.
-          </p>
-          <Link
-            href="/activity"
-            className="btn-quiet mt-3.5 inline-flex w-full items-center justify-center px-4 py-2.5 text-[14px]"
-          >
+          <Link href="/activity" className="btn-quiet mt-3 inline-flex w-full items-center justify-center px-4 py-2.5 text-[13.5px]">
             See exactly what happened
           </Link>
         </section>
-      ) : facts.triggered || guardOff ? (
-        <section
-          className="card rise px-5 py-4"
-          style={{ "--d": "0.16s", borderColor: "color-mix(in srgb, var(--color-alert-red) 32%, transparent)" } as React.CSSProperties}
-        >
+      ) : facts.triggered || state.settings.utilGuard === "off" ? (
+        <section className="card rise px-5 py-4" style={{ "--d": "0.16s" } as React.CSSProperties}>
           <p className="lbl" style={{ color: "var(--color-alert-red)" }}>
-            Action needed before {facts.statementDate}
+            {facts.daysUntilStatement} days to act
           </p>
-          <h2 className="serif mt-1 text-[19px] leading-snug text-cream">
-            Your statement cuts in {facts.daysUntilStatement} days — at{" "}
-            {facts.display.utilisation} of your limit.
+          <h2 className="serif mt-1 text-[18px] leading-snug text-cream">
+            The bureau will see {facts.display.utilisation} on {facts.statementDate}.
           </h2>
-          <p className="mt-1.5 text-[13.5px] leading-relaxed text-mute">
-            The bureau records that snapshot even if you pay in full afterwards.
-            Roughly {facts.scoreImpactBand} could be at stake — an estimate, not a
-            promise.
+          <p className="mt-1 text-[13px] text-mute">
+            Even if you pay in full after. Roughly {facts.scoreImpactBand} at stake — an estimate.
           </p>
-          {guardOff && (
-            <p className="mt-2 text-[12.5px] italic text-faint">
-              Your Guardian is off, so it will only warn — it won’t move anything.
-            </p>
-          )}
-          <Link
-            href="/guardian"
-            className="btn-gold mt-3.5 inline-flex w-full items-center justify-center px-4 py-2.5 text-[14px]"
-          >
-            See what’s happening
+          <Link href="/guardian" className="btn-gold mt-3 inline-flex w-full items-center justify-center px-4 py-2.5 text-[14px]">
+            Fix it before {facts.statementDate}
           </Link>
-          {state.scenario === "messy" && (
-            <Link
-              href="/chat"
-              className="btn-quiet mt-2 inline-flex w-full items-center justify-center px-4 py-2.5 text-[13.5px]"
-            >
-              Plan across everything you owe
-            </Link>
-          )}
         </section>
       ) : null}
 
-      {/* messy mode: the rest of what's owed this cycle */}
+      {/* messy mode: the rest owed this cycle */}
       {state.scenario === "messy" && (
-        <section className="rise" style={{ "--d": "0.2s" } as React.CSSProperties}>
-          <p className="lbl mb-2.5">Also due this cycle</p>
+        <section className="rise" style={{ "--d": "0.22s" } as React.CSSProperties}>
+          <p className="lbl mb-2">Also due</p>
           <div className="flex flex-col gap-2">
             {state.emis.map((emi) => (
-              <div
+              <Link
                 key={emi.id}
-                className="flex items-center justify-between rounded-2xl border px-4 py-3"
-                style={{ borderColor: "color-mix(in srgb, var(--color-alert-red) 30%, transparent)" }}
+                href="/chat"
+                className="card flex items-center justify-between px-4 py-3 transition-opacity hover:opacity-90"
               >
                 <div>
-                  <p className="text-[13.5px] text-cream">
-                    {emi.name}
-                    <span className="ml-2 text-[11px]" style={{ color: "var(--color-alert-red)" }}>
-                      hard due · {emi.monthLabel} {emi.dueDay}
-                    </span>
-                  </p>
-                  <p className="text-[12px] leading-snug text-faint">
-                    Missing this is worse than any utilisation hit.
+                  <p className="text-[13.5px] text-cream">{emi.name}</p>
+                  <p className="text-[11.5px]" style={{ color: "var(--color-alert-red)" }}>
+                    must pay · {emi.monthLabel} {emi.dueDay}
                   </p>
                 </div>
-                <p className="figure shrink-0 pl-3 text-[17px] text-cream">
+                <p className="figure shrink-0 pl-3 text-[16px] text-cream">
                   ₹{new Intl.NumberFormat("en-IN").format(emi.amount)}
                 </p>
-              </div>
+              </Link>
             ))}
             {state.cards
               .filter((c) => c.id !== state.primaryCardId)
               .map((c) => {
                 const u = Math.round((c.balance / c.limit) * 100);
                 return (
-                  <div
-                    key={c.id}
-                    className="flex items-center justify-between rounded-2xl border border-(--hairline) px-4 py-3"
-                  >
+                  <div key={c.id} className="flex items-center justify-between rounded-2xl border border-(--hairline) px-4 py-3">
                     <div>
                       <p className="text-[13.5px] text-cream">{c.issuer} card</p>
-                      <p className="text-[12px] text-faint">
-                        ₹{new Intl.NumberFormat("en-IN").format(c.balance)} of ₹
-                        {new Intl.NumberFormat("en-IN").format(c.limit)}
+                      <p className="text-[11.5px] text-faint">
+                        ₹{new Intl.NumberFormat("en-IN").format(c.balance)} of ₹{new Intl.NumberFormat("en-IN").format(c.limit)}
                       </p>
                     </div>
-                    <p className="figure shrink-0 pl-3 text-[17px]" style={{ color: u <= 30 ? "var(--color-sage)" : "var(--color-amber)" }}>
+                    <p className="figure shrink-0 pl-3 text-[16px]" style={{ color: u <= 30 ? "var(--color-sage)" : "var(--color-amber)" }}>
                       {u}%
                     </p>
                   </div>
                 );
               })}
+            <Link href="/chat" className="btn-quiet inline-flex w-full items-center justify-center px-4 py-2.5 text-[13px]">
+              Plan across everything
+            </Link>
           </div>
         </section>
       )}
 
-      {/* the rest of the guardian */}
-      <section className="rise" style={{ "--d": "0.24s" } as React.CSSProperties}>
-        <p className="lbl mb-2.5">Also watching over you</p>
+      {/* the other guards */}
+      <section className="rise" style={{ "--d": "0.28s" } as React.CSSProperties}>
+        <p className="lbl mb-2">Your guards</p>
         <div className="flex flex-col gap-2">
-          <Link
-            href="/autopay"
-            className="card flex items-center justify-between px-4 py-3 transition-opacity hover:opacity-90"
-          >
+          <Link href="/autopay" className="card flex items-center justify-between px-4 py-3 transition-opacity hover:opacity-90">
             <div>
               <p className="text-[13.5px] text-cream">Autopay guard</p>
-              <p className="text-[12px] text-faint">
-                Never miss a due date — pays only while your cushion holds.
-              </p>
+              <p className="text-[11.5px] text-faint">pays the due date, never your cushion</p>
             </div>
             <span
               className="shrink-0 rounded-full border px-2 py-0.5 text-[10.5px]"
@@ -193,10 +156,10 @@ export default function HomePage() {
           <div className="flex items-center justify-between rounded-2xl border border-(--hairline) px-4 py-3 opacity-55">
             <div>
               <p className="text-[13.5px] text-cream-2">Dispute watch</p>
-              <p className="text-[12px] text-faint">Spots charges that don’t look like you.</p>
+              <p className="text-[11.5px] text-faint">flags charges that don’t look like you</p>
             </div>
             <span className="shrink-0 rounded-full border border-(--hairline) px-2 py-0.5 text-[10.5px] text-faint">
-              coming soon
+              soon
             </span>
           </div>
         </div>

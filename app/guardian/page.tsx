@@ -1,40 +1,27 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useGuardian } from "@/components/GuardianProvider";
-import { BackLink, SeverityChip, WordsBadge } from "@/components/ui";
-import type { Explanation } from "@/lib/types";
+import { BackLink, SeverityChip } from "@/components/ui";
 
 export default function GuardianPage() {
-  const { state, facts, explain, loading } = useGuardian();
-  const [explanation, setExplanation] = useState<Explanation | null>(null);
-
-  useEffect(() => {
-    if (!facts) return;
-    let cancelled = false;
-    explain("recommendation").then((e) => {
-      if (!cancelled) setExplanation(e);
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [facts, explain]);
+  const { state, facts, loading, openSheet } = useGuardian();
 
   if (loading || !facts || !state) return null;
 
+  const nothingSafe = facts.affordableNow <= 0;
+
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex min-h-full flex-col gap-5">
       <div className="rise" style={{ "--d": "0s" } as React.CSSProperties}>
         <BackLink href="/" label="Home" />
       </div>
 
       <header className="rise" style={{ "--d": "0.06s" } as React.CSSProperties}>
-        <p className="lbl">Why you’re seeing this</p>
-        <h1 className="serif mt-1.5 text-[26px] leading-[1.15] text-cream">
+        <h1 className="serif text-[26px] leading-[1.15] text-cream">
           Paying in full doesn’t protect your score.
         </h1>
-        <div className="mt-3">
+        <div className="mt-2.5">
           <SeverityChip severity={facts.severity} pct={facts.utilisationPct} />
         </div>
       </header>
@@ -55,79 +42,88 @@ export default function GuardianPage() {
             }}
           />
           {[
-            { day: `${state.demo.monthLabel} ${state.demo.today}`, tag: "today", note: "you can still act", color: "var(--color-gold)" },
-            { day: facts.statementDate, tag: "statement cuts", note: `bureau records ${facts.display.utilisation}`, color: "var(--color-alert-red)" },
-            { day: facts.dueDate, tag: "payment due", note: "paying here is too late for the snapshot", color: "var(--color-faint)" },
+            { day: `${state.demo.monthLabel} ${state.demo.today}`, tag: "today", note: "you can act", color: "var(--color-gold)" },
+            { day: facts.statementDate, tag: "snapshot", note: `bureau records ${facts.display.utilisation}`, color: "var(--color-alert-red)" },
+            { day: facts.dueDate, tag: "due date", note: "too late to help", color: "var(--color-faint)" },
           ].map((n) => (
             <div key={n.tag} className="relative flex w-1/3 flex-col items-center text-center first:items-start first:text-left last:items-end last:text-right">
               <span aria-hidden className="h-[11px] w-[11px] rounded-full border-2" style={{ borderColor: n.color, background: "var(--color-ink-3)" }} />
               <p className="figure mt-2 text-[15px] text-cream">{n.day}</p>
               <p className="text-[11.5px]" style={{ color: n.color }}>{n.tag}</p>
-              <p className="mt-0.5 max-w-[11ch] text-[11px] leading-snug text-faint">{n.note}</p>
+              <p className="mt-0.5 max-w-[12ch] text-[11px] leading-snug text-faint">{n.note}</p>
             </div>
           ))}
         </div>
       </section>
 
-      {/* the guardian speaks — LLM layer, provenance visible */}
-      <section className="rise" style={{ "--d": "0.18s" } as React.CSSProperties}>
-        <div className="card relative px-5 py-4">
-          <span
-            aria-hidden
-            className="absolute inset-y-4 left-0 w-[2.5px] rounded-full"
-            style={{ background: "linear-gradient(var(--color-gold-bright), var(--color-gold-deep))" }}
-          />
-          {explanation ? (
-            <>
-              <p className="text-[14.5px] leading-[1.65] text-cream-2">
-                {explanation.text}
-              </p>
-              <div className="mt-3">
-                <WordsBadge source={explanation.source} />
-              </div>
-            </>
-          ) : (
-            <div className="flex flex-col gap-2.5 py-1" aria-label="Writing the explanation">
-              {[100, 92, 60].map((w) => (
-                <div
-                  key={w}
-                  className="pending h-3.5 rounded"
-                  style={{ width: `${w}%`, background: "var(--glass-2)" }}
-                />
-              ))}
-            </div>
-          )}
-        </div>
-      </section>
-
-      {/* the numbers, owned by the rules engine */}
-      <section className="rise grid grid-cols-2 gap-2" style={{ "--d": "0.24s" } as React.CSSProperties}>
+      {/* the numbers */}
+      <section className="rise grid grid-cols-3 gap-2" style={{ "--d": "0.18s" } as React.CSSProperties}>
         {[
-          { k: "On the card now", v: facts.display.balance },
-          { k: "The 30% safe line", v: facts.display.targetBalance30 },
-          { k: "To get under it", v: facts.display.paydownTo30 },
-          { k: "Score at stake", v: facts.scoreImpactBand, note: "estimate" },
+          { k: "On the card", v: facts.display.balance },
+          { k: "Safe line", v: facts.display.targetBalance30 },
+          { k: "At stake", v: facts.scoreImpactBand.replace(" pts", ""), note: "pts, est." },
         ].map((s) => (
-          <div key={s.k} className="rounded-2xl border border-(--hairline) px-4 py-3">
-            <p className="text-[11.5px] text-faint">{s.k}</p>
-            <p className="figure mt-0.5 text-[19px] text-cream">
+          <div key={s.k} className="rounded-2xl border border-(--hairline) px-3 py-2.5">
+            <p className="text-[11px] text-faint">{s.k}</p>
+            <p className="figure mt-0.5 text-[16px] leading-tight text-cream">
               {s.v}
-              {s.note && <span className="ml-1.5 text-[11px] italic text-faint">{s.note}</span>}
+              {s.note && <span className="ml-1 text-[10px] italic text-faint">{s.note}</span>}
             </p>
           </div>
         ))}
       </section>
 
-      <div className="rise flex flex-col gap-2" style={{ "--d": "0.3s" } as React.CSSProperties}>
-        <Link
-          href="/consent"
-          className="btn-gold inline-flex w-full items-center justify-center px-4 py-3 text-[14.5px]"
-        >
-          Plan the paydown
-        </Link>
-        <p className="text-center text-[12px] text-faint">
-          You approve every move before it happens.
-        </p>
+      {/* depth lives in Ask */}
+      <Link
+        href={`/chat?q=${encodeURIComponent("Why does this matter if I pay in full every month?")}`}
+        className="rise flex items-center justify-between rounded-2xl border border-(--hairline) px-4 py-3 transition-colors hover:border-(--hairline-strong)"
+        style={{ "--d": "0.24s" } as React.CSSProperties}
+      >
+        <span className="text-[13px] text-cream-2">“Why does this matter if I pay in full?”</span>
+        <span className="lbl">Ask me</span>
+      </Link>
+
+      {/* the longer-term fix */}
+      <button
+        onClick={() => openSheet({ type: "limit-increase" })}
+        className="rise flex items-center justify-between rounded-2xl border border-(--hairline) px-4 py-3 text-left transition-colors hover:border-(--hairline-strong)"
+        style={{ "--d": "0.28s" } as React.CSSProperties}
+      >
+        <span>
+          <span className="block text-[13px] text-cream-2">
+            Raise the limit to {facts.display.requestedLimit}
+          </span>
+          <span className="block text-[11.5px] text-faint">
+            same spend reports {facts.display.utilisationAtNewLimit} — not extra money
+          </span>
+        </span>
+        <span className="lbl">Review</span>
+      </button>
+
+      {/* docked action */}
+      <div className="mt-auto pb-2 pt-2">
+        {nothingSafe ? (
+          <div className="card px-4 py-3.5 text-center">
+            <p className="text-[13px] text-mute">
+              Everything in your bank is reserved for your{" "}
+              <span style={{ color: "var(--color-sage)" }}>{facts.display.safetyBuffer} cushion</span> — I won’t touch it.
+            </p>
+          </div>
+        ) : (
+          <>
+            <button
+              onClick={() => openSheet({ type: "paydown" })}
+              className="btn-gold w-full px-4 py-3.5 text-[15px]"
+            >
+              Pay {facts.display.affordableNow} now
+            </button>
+            {facts.splitRequired && (
+              <p className="mt-2 text-center text-[11.5px] text-faint">
+                {facts.display.shortfall} follows on {facts.dueDate} — your cushion stays whole.
+              </p>
+            )}
+          </>
+        )}
       </div>
     </div>
   );

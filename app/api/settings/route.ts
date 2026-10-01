@@ -27,6 +27,10 @@ export async function PATCH(req: NextRequest) {
   const state = getState();
   const changes: string[] = [];
 
+  if (typeof body?.onboarded === "boolean") {
+    state.onboarded = body.onboarded;
+  }
+
   if (LEVELS.includes(body?.utilGuard) && body.utilGuard !== state.settings.utilGuard) {
     state.settings.utilGuard = body.utilGuard;
     changes.push(`utilisation autonomy → ${LABELS[state.settings.utilGuard]}`);

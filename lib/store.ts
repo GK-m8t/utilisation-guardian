@@ -20,6 +20,7 @@ const CARD_A: Card = {
 function base(): Omit<AppState, "scenario" | "cards" | "emis"> {
   return {
     user: { name: "George", age: 24, incomeBand: "₹55k/month", city: "Bengaluru" },
+    onboarded: false,
     primaryCardId: "hdfc",
     bank: {
       balance: 38_000, // salary landed on the 1st

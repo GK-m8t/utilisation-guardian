@@ -73,15 +73,15 @@ All providers sit behind one interface (`explain(facts, kind)`) — swapping is 
 
 **Why open-model-first for production:** this workload is high-volume, short-form, vernacular explanation — exactly what a small self-hosted open model does well. At scale, per-call frontier pricing dominates unit economics; and the payloads contain financial PII, where RBI data-localisation expectations make keeping inference in-country and in-house the safer default. A frontier API remains a fallback for rare hard cases only.
 
-## Screens
+## The product shape
 
-1. **Home** — utilisation dial (the 30% safe line is a physical notch on the gauge), proactive alert before the statement date.
-2. **Guardian explainer** — the statement-snapshot timeline, plain-language why, severity, directional impact.
-3. **Affordability & consent** — the split plan, the cushion made visible, one explicit yes per action.
-4. **Confirmation + activity log** — "here's exactly what I did," the 82% → 44% dial morph, every action (and every guardrail denial) in plain words.
-5. **Autonomy settings** — the per-action trust dials (paydowns + autopay), the auto-move cap, the scenario switch, and the **"Your money" inputs**: bank balance and the essentials-until-salary cushion are editable (in production they'd be inferred from the linked bank and salary pattern), and every recommendation, plan, and guardrail re-derives from them live — set the cushion above the bank balance and the Guardian drops to propose-only.
-6. **Ask** — the grounded chat, with per-answer tool traces and consent-gated action proposals.
-7. **Autopay guard** — its own dial, the armed rule, and the due-date simulation.
+- **First-run onboarding** (3 screens, skippable): meet the Guardian → connect your bank + set the essentials cushion → choose autonomy. The Guardian earns its permissions before it acts.
+- **Three tabs — Home · Ask · Activity** — with Settings behind the header gear. Each guard's autonomy is controlled on its own surface.
+- **Consent is a bottom sheet with slide-to-confirm**: the split, the cushion bar, a one-line trust row, and a deliberate gesture. Policy denials render *inside the sheet*, in place of the confirm control — the guardrail appears exactly where you acted. Success (the 82% → 44% morph) animates in-sheet.
+- **Guardian explainer** is visual-first — the snapshot timeline, three stat tiles, a docked CTA — with depth handed off to Ask ("Why does this matter if I pay in full?" pre-fires in chat).
+- **Ask** — the grounded chat, with per-answer "How I worked this out" tool traces and consent-gated action proposals that open the same sheet.
+- **Autopay guard** — its own trust dial and armed rule; the buffer-aware partial-payment behaviour.
+- **Demo harness is quarantined**: scenario switch, money overrides, due-date fast-forward, reset, and LLM status all live in a discreet "demo" drawer outside the product surface. The app itself carries zero demo furniture. Every recommendation, plan, and guardrail re-derives live from the money inputs — set the cushion above the bank balance and the Guardian drops to propose-only.
 
 On wide screens, a side rail narrates the architecture live: the numbers the rules engine computed, where the words came from (including the last chat answer's tool chain), and the checks the last action passed or failed.
 

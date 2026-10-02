@@ -42,6 +42,7 @@ function systemPrompt(state: AppState): string {
     "- You know NO numbers. For ANY numeric or factual claim (balances, dates, utilisation, score impact, plans), call a tool first and repeat its figures verbatim.",
     "- NEVER say you will check, look at, or plan something. The user cannot see tools. If an answer needs a check, make the tool call NOW and answer with the result in the same turn. \"Let's check X\" is a failed answer.",
     "- Answer the user's actual question in your FIRST sentence, with specifics. Never restate a previous answer — every reply must add new information.",
+    "- Weave the key results you fetched into the answer — the DATES as much as the amounts. Fetching getStatementTiming and then answering without a date is a failed answer.",
     "- When explaining the statement-snapshot problem, fetch the real dates with getStatementTiming first — never explain it dateless.",
     "- Score/eligibility statements are directional estimates — say so, never promise.",
     "- A credit-limit increase is never 'more money to spend'.",
@@ -267,6 +268,14 @@ function cannedAnswer(state: AppState, question: string): ChatReply {
     call("proposeAction", { type: "paydown", cardId: state.primaryCardId, amount });
     return reply(
       `Happy to — but money only moves with your explicit yes. I’ve prepared the ${deployableStr} paydown for review; approve it on the consent screen and I’ll do the rest.`
+    );
+  }
+
+  if (/when (exactly )?(should|do|can) i pay|by when|what date|pay by|best (time|date)/.test(q)) {
+    const timing = call("getStatementTiming", {});
+    const obligations = call("getObligations");
+    return reply(
+      `Before ${timing.statementDate} — that's ${timing.daysUntilStatement} days away, when the bureau takes its snapshot. You can safely move ${obligations.deployableToday} today. Paying only by the ${timing.dueDate} due date avoids fees, but it's after the snapshot, so it won't protect your score.`
     );
   }
 

@@ -202,6 +202,8 @@ export interface Explanation {
 export interface ChatMessage {
   role: "user" | "assistant";
   content: string;
+  /** tools the assistant used on that turn — replayed so it remembers its own checks */
+  toolsUsed?: string[];
 }
 
 /** One deterministic tool invocation the model made while answering. */

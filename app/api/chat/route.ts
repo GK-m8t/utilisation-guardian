@@ -21,6 +21,13 @@ export async function POST(req: NextRequest) {
         ((m as ChatMessage).role === "user" || (m as ChatMessage).role === "assistant") &&
         typeof (m as ChatMessage).content === "string"
     )
+    .map((m: ChatMessage) => ({
+      role: m.role,
+      content: m.content,
+      toolsUsed: Array.isArray(m.toolsUsed)
+        ? m.toolsUsed.filter((t): t is string => typeof t === "string").slice(0, 8)
+        : undefined,
+    }))
     .slice(-12); // session memory: recent turns only, held client-side
 
   if (messages.length === 0 || messages[messages.length - 1].role !== "user") {

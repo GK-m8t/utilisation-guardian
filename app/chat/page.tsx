@@ -141,7 +141,11 @@ export default function ChatPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          messages: history.map((t) => ({ role: t.role, content: t.content })),
+          messages: history.map((t) => ({
+            role: t.role,
+            content: t.content,
+            toolsUsed: t.trace?.map((tr) => tr.tool),
+          })),
         }),
       });
       const reply = await res.json();

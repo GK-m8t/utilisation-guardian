@@ -40,6 +40,9 @@ function systemPrompt(state: AppState): string {
     "",
     "HARD RULES:",
     "- You know NO numbers. For ANY numeric or factual claim (balances, dates, utilisation, score impact, plans), call a tool first and repeat its figures verbatim.",
+    "- NEVER say you will check, look at, or plan something. The user cannot see tools. If an answer needs a check, make the tool call NOW and answer with the result in the same turn. \"Let's check X\" is a failed answer.",
+    "- Answer the user's actual question in your FIRST sentence, with specifics. Never restate a previous answer — every reply must add new information.",
+    "- When explaining the statement-snapshot problem, fetch the real dates with getStatementTiming first — never explain it dateless.",
     "- Score/eligibility statements are directional estimates — say so, never promise.",
     "- A credit-limit increase is never 'more money to spend'.",
     "- You cannot move money. If the user wants to act, call proposeAction — it gives them a review button; never claim you executed anything.",
@@ -52,6 +55,14 @@ function systemPrompt(state: AppState): string {
     '  {"tool": "<name>", "args": {...}}   to call a tool (results come back as TOOL RESULT messages)',
     '  {"answer": "<plain-English answer, under 130 words>"}   when ready to answer',
     "Chain tools as needed (max 6 per turn). Answer conversationally; do not mention tools or JSON in the answer text.",
+    "",
+    "EXAMPLE of a good turn:",
+    'user: "When should I pay to be safe?"',
+    'you: {"tool": "getStatementTiming", "args": {}}',
+    '(TOOL RESULT arrives: statement date, days left, due date)',
+    'you: {"tool": "getObligations", "args": {}}',
+    '(TOOL RESULT arrives: deployable amount)',
+    'you: {"answer": "Before <statement date from the result> — that\'s <days> days away, when the bureau takes its snapshot. You can safely move <deployable amount> today; paying by the <due date> alone won\'t help the snapshot."}',
   ].join("\n");
 }
 
@@ -119,13 +130,22 @@ export async function runChat(state: AppState, messages: ChatMessage[]): Promise
 
   const convo: ProviderMessage[] = [
     { role: "system", content: systemPrompt(state) },
-    ...messages.map((m) => ({ role: m.role, content: m.content })),
+    // Tool memory: replay what the assistant checked on earlier turns, so
+    // "did you check X?" gets a real answer instead of a re-statement.
+    ...messages.map((m) => ({
+      role: m.role,
+      content:
+        m.role === "assistant" && m.toolsUsed?.length
+          ? `${m.content}\n[on that turn you checked: ${m.toolsUsed.join(", ")}]`
+          : m.content,
+    })),
   ];
 
   try {
     let retriedGuard = false;
+    let retriedDeferral = false;
     for (let step = 0; step <= MAX_TOOL_CALLS + 2; step++) {
-      const result = await rawChat(convo, 600);
+      const result = await rawChat(convo, 700, 0.3);
       if (result === null) return cannedAnswer(state, lastUser); // no provider configured
 
       const turn = parseModelTurn(result.text);
@@ -156,6 +176,24 @@ export async function runChat(state: AppState, messages: ChatMessage[]): Promise
         convo.push(
           { role: "assistant", content: JSON.stringify(turn) },
           { role: "user", content: 'Tool budget reached — give your {"answer": ...} now, using only figures from tool results.' }
+        );
+        continue;
+      }
+
+      // Quality guard: an answer that promises to check something is a
+      // failed answer — the user never sees tools. Make it do the work now.
+      const DEFERRAL =
+        /let'?s (check|look|review|plan|see)|let me (check|look|pull|see)|i(['’]| wi)ll (check|look|pull|review)|we (can|should|['’]ll) (check|look|review)/i;
+      if (DEFERRAL.test(answer) && !retriedDeferral && ctx.trace.length < MAX_TOOL_CALLS) {
+        retriedDeferral = true;
+        console.warn("[chat] deferral guard tripped — forcing the tool call now");
+        convo.push(
+          { role: "assistant", content: JSON.stringify(turn) },
+          {
+            role: "user",
+            content:
+              "You deferred ('let's check…'). The user never sees tool calls — call the tool NOW and give the answer with its actual results, no promises of future checks.",
+          }
         );
         continue;
       }

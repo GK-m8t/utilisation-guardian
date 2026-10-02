@@ -131,7 +131,7 @@ export interface ProviderMessage {
   content: string;
 }
 
-async function callOllama(messages: ProviderMessage[], maxTokens: number): Promise<string> {
+async function callOllama(messages: ProviderMessage[], maxTokens: number, temperature: number): Promise<string> {
   const model = process.env.OLLAMA_MODEL || "llama3.2";
   const base = process.env.OLLAMA_BASE_URL || "http://localhost:11434";
   const res = await timedFetch(`${base}/api/chat`, {
@@ -141,7 +141,7 @@ async function callOllama(messages: ProviderMessage[], maxTokens: number): Promi
       model,
       messages,
       stream: false,
-      options: { temperature: 0.4, num_predict: maxTokens },
+      options: { temperature, num_predict: maxTokens },
     }),
   });
   if (!res.ok) throw new Error(`ollama ${res.status}`);
@@ -149,7 +149,7 @@ async function callOllama(messages: ProviderMessage[], maxTokens: number): Promi
   return data.message?.content ?? "";
 }
 
-async function callHuggingFace(messages: ProviderMessage[], maxTokens: number): Promise<string> {
+async function callHuggingFace(messages: ProviderMessage[], maxTokens: number, temperature: number): Promise<string> {
   const token = process.env.HF_API_TOKEN;
   if (!token) throw new Error("HF_API_TOKEN missing");
   const model = process.env.HF_MODEL || "meta-llama/Llama-3.3-70B-Instruct";
@@ -159,14 +159,14 @@ async function callHuggingFace(messages: ProviderMessage[], maxTokens: number): 
       "Content-Type": "application/json",
       Authorization: `Bearer ${token}`,
     },
-    body: JSON.stringify({ model, messages, max_tokens: maxTokens, temperature: 0.4 }),
+    body: JSON.stringify({ model, messages, max_tokens: maxTokens, temperature }),
   });
   if (!res.ok) throw new Error(`hf ${res.status}`);
   const data = await res.json();
   return data.choices?.[0]?.message?.content ?? "";
 }
 
-async function callFrontier(messages: ProviderMessage[], maxTokens: number): Promise<string> {
+async function callFrontier(messages: ProviderMessage[], maxTokens: number, temperature: number): Promise<string> {
   if (process.env.ANTHROPIC_API_KEY) {
     // Anthropic takes the system prompt as a top-level param.
     const system = messages.filter((m) => m.role === "system").map((m) => m.content).join("\n");
@@ -181,6 +181,7 @@ async function callFrontier(messages: ProviderMessage[], maxTokens: number): Pro
       body: JSON.stringify({
         model: process.env.ANTHROPIC_MODEL || "claude-haiku-4-5-20251001",
         max_tokens: maxTokens,
+        temperature,
         system: system || undefined,
         messages: rest,
       }),
@@ -199,6 +200,7 @@ async function callFrontier(messages: ProviderMessage[], maxTokens: number): Pro
       body: JSON.stringify({
         model: process.env.OPENAI_MODEL || "gpt-4o-mini",
         max_tokens: maxTokens,
+        temperature,
         messages,
       }),
     });
@@ -217,14 +219,15 @@ async function callFrontier(messages: ProviderMessage[], maxTokens: number): Pro
  */
 export async function rawChat(
   messages: ProviderMessage[],
-  maxTokens = 400
+  maxTokens = 400,
+  temperature = 0.4
 ): Promise<{ text: string; source: LlmSource } | null> {
   const provider = process.env.LLM_PROVIDER as LlmSource | undefined;
   if (!provider || provider === "template") return null;
   let text: string;
-  if (provider === "ollama") text = await callOllama(messages, maxTokens);
-  else if (provider === "hf") text = await callHuggingFace(messages, maxTokens);
-  else if (provider === "frontier") text = await callFrontier(messages, maxTokens);
+  if (provider === "ollama") text = await callOllama(messages, maxTokens, temperature);
+  else if (provider === "hf") text = await callHuggingFace(messages, maxTokens, temperature);
+  else if (provider === "frontier") text = await callFrontier(messages, maxTokens, temperature);
   else return null;
   return { text: text.replace(/<think>[\s\S]*?<\/think>/g, "").trim(), source: provider };
 }

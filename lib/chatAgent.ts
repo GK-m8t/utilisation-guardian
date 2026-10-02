@@ -40,6 +40,7 @@ function systemPrompt(state: AppState): string {
     "",
     "HARD RULES:",
     "- You know NO numbers. For ANY numeric or factual claim (balances, dates, utilisation, score impact, plans), call a tool first and repeat its figures verbatim.",
+    "- Figures must come from THIS turn's tool results. Even when confirming an earlier check ('did you check X?'), re-call the tool (it's free, data may have changed) before quoting the number.",
     "- NEVER say you will check, look at, or plan something. The user cannot see tools. If an answer needs a check, make the tool call NOW and answer with the result in the same turn. \"Let's check X\" is a failed answer.",
     "- Answer the user's actual question in your FIRST sentence, with specifics. Never restate a previous answer — every reply must add new information.",
     "- Weave the key results you fetched into the answer — the DATES as much as the amounts. Fetching getStatementTiming and then answering without a date is a failed answer.",
@@ -143,7 +144,7 @@ export async function runChat(state: AppState, messages: ChatMessage[]): Promise
   ];
 
   try {
-    let retriedGuard = false;
+    let guardRetries = 0;
     let retriedDeferral = false;
     for (let step = 0; step <= MAX_TOOL_CALLS + 2; step++) {
       const result = await rawChat(convo, 700, 0.3);
@@ -199,21 +200,24 @@ export async function runChat(state: AppState, messages: ChatMessage[]): Promise
         continue;
       }
 
-      // Guardrail 2: every number must trace to a tool result.
+      // Guardrail 2: every number must trace to a tool result from THIS turn.
       const verdict = verifyChatAnswer(answer, ctx.allowed);
       if (!verdict.ok) {
-        if (!retriedGuard) {
-          retriedGuard = true;
+        if (guardRetries < 2) {
+          guardRetries++;
           convo.push(
             { role: "assistant", content: JSON.stringify(turn) },
             {
               role: "user",
-              content: `NUMBER GUARD: your answer contains figures no tool returned (${verdict.offending.join(", ")}). Rewrite using only tool-result figures, or call the tool you need.`,
+              content:
+                guardRetries === 1
+                  ? `NUMBER GUARD: your answer contains figures no tool returned this turn (${verdict.offending.join(", ")}). Call the tool that produces them (e.g. getUtilisation, getObligations), then answer with its fresh results.`
+                  : `NUMBER GUARD again (${verdict.offending.join(", ")}). Reply with a {"tool": ...} call FIRST — do not answer until a tool has returned these figures.`,
             }
           );
           continue;
         }
-        console.warn(`[chat] number guard tripped twice (${verdict.offending.join(", ")}) — serving canned answer`);
+        console.warn(`[chat] number guard tripped ${guardRetries + 1}x (${verdict.offending.join(", ")}) — serving canned answer`);
         return cannedAnswer(state, lastUser);
       }
 
@@ -268,6 +272,13 @@ function cannedAnswer(state: AppState, question: string): ChatReply {
     call("proposeAction", { type: "paydown", cardId: state.primaryCardId, amount });
     return reply(
       `Happy to — but money only moves with your explicit yes. I’ve prepared the ${deployableStr} paydown for review; approve it on the consent screen and I’ll do the rest.`
+    );
+  }
+
+  if (/did you (check|look|verify)|have you (checked|looked)/.test(q)) {
+    const util = call("getUtilisation", {});
+    return reply(
+      `Yes — just now: your ${String(util.issuer)} card is at ${util.utilisation} (${util.balance} of ${util.limit}).`
     );
   }
 

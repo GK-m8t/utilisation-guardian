@@ -126,9 +126,12 @@ export async function runChat(state: AppState, messages: ChatMessage[]): Promise
   }
 
   const ctx: TurnContext = { trace: [], allowed: new Set() };
-  // The user's own message may contain numbers (e.g. "I need ₹10,000 for rent")
-  // — quoting the user back is always safe.
-  for (const n of extractNumericTokens(lastUser)) ctx.allowed.add(n);
+  // Quoting the conversation back is always safe: the user's own numbers,
+  // and figures the assistant already stated (those passed the guard when
+  // first produced, i.e. they trace to a tool result transitively).
+  for (const m of messages) {
+    for (const n of extractNumericTokens(m.content)) ctx.allowed.add(n);
+  }
 
   const convo: ProviderMessage[] = [
     { role: "system", content: systemPrompt(state) },
@@ -273,6 +276,22 @@ function cannedAnswer(state: AppState, question: string): ChatReply {
     return reply(
       `Happy to — but money only moves with your explicit yes. I’ve prepared the ${deployableStr} paydown for review; approve it on the consent screen and I’ll do the rest.`
     );
+  }
+
+  // "I can only spare/pay ₹10,000" → simulate that exact paydown.
+  const spareMatch = q.match(/(?:spare|only (?:have|pay|manage|afford)|can (?:pay|do|manage))\D{0,12}?₹?\s?(\d[\d,]*)\s*(k)?/);
+  if (spareMatch) {
+    const amount = Number(spareMatch[1].replaceAll(",", "")) * (spareMatch[2] ? 1000 : 1);
+    if (amount > 0) {
+      const sim = call("simulatePaydown", { cardId: state.primaryCardId, amount });
+      return reply(
+        `${sim.amount} today takes you from ${sim.utilisationBefore} to ${sim.utilisationAfter} at the snapshot — ${
+          sim.affordableWithoutBreachingCushion
+            ? `safely within your means (${sim.maxSafeToday} is the most you could move without touching your ${sim.cushionProtected} cushion)`
+            : `though that would dip into your ${sim.cushionProtected} cushion — ${sim.maxSafeToday} is the most I'd move`
+        }. Every bit under the snapshot helps, even if you don't reach 30%.`
+      );
+    }
   }
 
   if (/did you (check|look|verify)|have you (checked|looked)/.test(q)) {

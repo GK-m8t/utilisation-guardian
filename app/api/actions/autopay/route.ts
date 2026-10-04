@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { checkPolicy } from "@/lib/policy";
 import { evaluate } from "@/lib/rulesEngine";
 import { appendLog, getState, primaryCard } from "@/lib/store";
+import { createPaymentReceipt } from "@/lib/connectors/payment";
 import { dayLabel, inr, pct } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
@@ -91,8 +92,11 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: false, verdict }, { status: 403 });
   }
 
-  // --- Mocked due-date debit ---
-  await sleep(1200);
+  // --- Due-date debit: sandbox payment object + simulated settlement ---
+  const [receipt] = await Promise.all([
+    createPaymentReceipt(amountPaid, `Autopay for ${card.issuer} bill, due ${facts.dueDate}`),
+    sleep(1200),
+  ]);
   const before = card.balance / card.limit;
   card.balance -= amountPaid;
   state.bank.balance = (state.bank.balance as number) - amountPaid;
@@ -104,6 +108,7 @@ export async function POST(req: NextRequest) {
     amount: amountPaid,
     before,
     after,
+    receipt,
     note: partial
       ? `Autopay paid ${inr(amountPaid)} of your ${inr(statementAmount)} ${card.issuer} bill — paying it all would have broken your ${inr(state.bank.safetyBuffer)} cushion, so you’ve been alerted about the remaining ${inr(statementAmount - amountPaid)}. Utilisation ${pct(before)} → ${pct(after)}.`
       : `Autopay paid your ${inr(amountPaid)} ${card.issuer} bill on ${facts.dueDate}, cushion intact. Utilisation ${pct(before)} → ${pct(after)}.`,

@@ -20,7 +20,11 @@ export function DemoDrawer({
   const { state, facts, updateSettings, autopay, resetDemo } = useGuardian();
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
-  const [llm, setLlm] = useState<{ provider: string | null; model: string | null } | null>(null);
+  const [llm, setLlm] = useState<{
+    provider: string | null;
+    model: string | null;
+    connectors?: { bank: string; payment: string };
+  } | null>(null);
   const [bankDraft, setBankDraft] = useState<number | null>(null);
   const [bufferDraft, setBufferDraft] = useState<number | null>(null);
 
@@ -138,9 +142,16 @@ export function DemoDrawer({
             <input type="checkbox" checked={railVisible} onChange={(e) => setRailVisible(e.target.checked)} className="accent-(--color-gold)" />
           </label>
 
-          {/* LLM status */}
+          {/* connector + LLM status */}
           <p className="border-t border-(--hairline) pt-2.5 text-[11px] leading-relaxed text-faint">
             Words: {llm ? (llm.provider ? `${llm.provider} · ${llm.model}` : "templated (no provider configured)") : "checking…"}
+            {llm?.connectors && (
+              <>
+                <br />
+                Bank: {llm.connectors.bank === "aa-sim" ? "AA simulator (Setu contract)" : "mock"} · Pay:{" "}
+                {llm.connectors.payment === "razorpay-test" ? "Razorpay test rails" : "simulated"}
+              </>
+            )}
           </p>
         </aside>
       )}

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { checkPolicy } from "@/lib/policy";
 import { evaluate } from "@/lib/rulesEngine";
 import { appendLog, getState, primaryCard } from "@/lib/store";
+import { createPaymentReceipt } from "@/lib/connectors/payment";
 import { dayLabel, inr, pct } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
@@ -36,8 +37,11 @@ export async function POST(req: NextRequest) {
   const factsBefore = evaluate(state);
   const before = factsBefore.utilisation;
 
-  // --- Mocked bank debit (simulated latency, deterministic success) ---
-  await sleep(1200);
+  // --- Test-rail debit: sandbox payment object + simulated settlement ---
+  const [receipt] = await Promise.all([
+    createPaymentReceipt(amount, `Pre-statement paydown to ${primaryCard(state).issuer}`),
+    sleep(1200),
+  ]);
 
   const card = primaryCard(state);
   card.balance -= amount;
@@ -64,6 +68,7 @@ export async function POST(req: NextRequest) {
     amount,
     before,
     after,
+    receipt,
     note: `Moved ${inr(amount)} from ${card.issuer} savings to your card to protect your score before the ${factsBefore.statementDate} statement. Utilisation ${pct(before)} → ${pct(after)}.${remaining > 0 ? ` Scheduled ${inr(remaining)} for ${dueDate}.` : ""}${initiator === "agent" ? " (Autonomous, within your cap.)" : ""}`,
   });
 

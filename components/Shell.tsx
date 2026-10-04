@@ -32,7 +32,7 @@ const TABS = [
 ];
 
 /** Routes that take over the screen: no tab bar, back affordance instead. */
-const FLOW_ROUTES = ["/guardian", "/autopay", "/settings", "/onboarding"];
+const FLOW_ROUTES = ["/guardian", "/autopay", "/settings", "/onboarding", "/aa-sim"];
 
 export function Shell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -44,11 +44,13 @@ export function Shell({ children }: { children: React.ReactNode }) {
   const isOnboarding = pathname.startsWith("/onboarding");
 
   // First-run gate: the Guardian earns its permissions before it acts.
+  // The AA consent screen is part of onboarding — never bounce off it.
+  const isAaConsent = pathname.startsWith("/aa-sim");
   useEffect(() => {
-    if (!loading && state && !state.onboarded && !isOnboarding) {
+    if (!loading && state && !state.onboarded && !isOnboarding && !isAaConsent) {
       router.replace("/onboarding");
     }
-  }, [loading, state, isOnboarding, router]);
+  }, [loading, state, isOnboarding, isAaConsent, router]);
 
   return (
     <div className="grain min-h-dvh w-full">

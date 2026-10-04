@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useGuardian } from "@/components/GuardianProvider";
 import { UtilisationDial } from "@/components/UtilisationDial";
@@ -17,9 +17,47 @@ export default function OnboardingPage() {
   const [step, setStep] = useState(0);
   const [connecting, setConnecting] = useState(false);
   const [connected, setConnected] = useState(false);
+  const [linkedBalance, setLinkedBalance] = useState<number | null>(null);
+  const [viaAa, setViaAa] = useState(false);
+  const [aaDenied, setAaDenied] = useState(false);
   const [cushion, setCushion] = useState<number | null>(null);
   const [autonomy, setAutonomy] = useState<AutonomyLevel>("ask");
   const [finishing, setFinishing] = useState(false);
+  const aaHandled = useRef(false);
+
+  // Returning leg of the AA consent redirect (?aa=granted&session=…)
+  useEffect(() => {
+    if (aaHandled.current) return;
+    const q = new URLSearchParams(window.location.search);
+    const aa = q.get("aa");
+    if (!aa) return;
+    aaHandled.current = true;
+    window.history.replaceState(null, "", "/onboarding");
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setStep(1);
+    if (aa === "denied") {
+      setAaDenied(true);
+      return;
+    }
+    const session = q.get("session");
+    if (!session) return;
+    setConnecting(true);
+    (async () => {
+      try {
+        const res = await fetch(`/api/aa-sim/consents/${session}/fi-data?granted=1`);
+        const data = await res.json();
+        const balance = data?.accounts?.[0]?.summary?.currentBalance;
+        if (typeof balance === "number") {
+          await updateSettings({ bankBalance: balance });
+          setLinkedBalance(balance);
+          setViaAa(true);
+          setConnected(true);
+        }
+      } finally {
+        setConnecting(false);
+      }
+    })();
+  }, [updateSettings]);
 
   if (loading || !state || !facts) return null;
 
@@ -35,9 +73,19 @@ export default function OnboardingPage() {
     router.replace("/");
   }
 
-  // Mock bank link — Phase 2 swaps this for the Setu AA consent flow.
-  function connectBank() {
+  // Bank link: the AA-simulator consent flow (Setu contract), mock fallback.
+  async function connectBank() {
+    setAaDenied(false);
     setConnecting(true);
+    try {
+      const res = await fetch("/api/bank/link", { method: "POST" });
+      const data = await res.json();
+      if (data.mode === "aa-sim" && data.url) {
+        router.push(data.url); // → the aggregator's hosted consent screen
+        return;
+      }
+    } catch {}
+    // mock path: pretend-link with a short delay
     setTimeout(() => {
       setConnecting(false);
       setConnected(true);
@@ -88,19 +136,33 @@ export default function OnboardingPage() {
               <div className="flex items-center justify-between">
                 <p className="text-[13.5px] text-cream">HDFC savings ··4821</p>
                 <p className="figure text-[17px]" style={{ color: "var(--color-sage)" }}>
-                  {facts.display.bankBalance}
+                  {linkedBalance !== null
+                    ? `₹${new Intl.NumberFormat("en-IN").format(linkedBalance)}`
+                    : facts.display.bankBalance}
                 </p>
               </div>
-              <p className="mt-0.5 text-[11.5px] text-faint">connected · read-only</p>
+              <p className="mt-0.5 text-[11.5px] text-faint">
+                {viaAa
+                  ? "linked via Account Aggregator (simulator) · consent on record · read-only"
+                  : "connected · read-only"}
+              </p>
             </div>
           ) : (
-            <button
-              onClick={connectBank}
-              disabled={connecting}
-              className={`btn-gold mt-5 flex w-full items-center justify-center gap-2 px-4 py-3 text-[14.5px] ${connecting ? "pending" : ""}`}
-            >
-              {connecting ? <><Spinner /> Linking securely…</> : "Link HDFC savings"}
-            </button>
+            <>
+              {aaDenied && (
+                <p className="mt-4 rounded-xl border border-(--hairline) px-3.5 py-2.5 text-[12.5px] text-mute">
+                  You declined — nothing was shared. Without a linked bank I can
+                  only warn and propose, never move money.
+                </p>
+              )}
+              <button
+                onClick={connectBank}
+                disabled={connecting}
+                className={`btn-gold mt-5 flex w-full items-center justify-center gap-2 px-4 py-3 text-[14.5px] ${connecting ? "pending" : ""}`}
+              >
+                {connecting ? <><Spinner /> Fetching via consent…</> : "Link HDFC savings"}
+              </button>
+            </>
           )}
 
           {connected && (

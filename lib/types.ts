@@ -76,6 +76,8 @@ export interface ActionLogEntry {
   before?: number;
   after?: number;
   note: string;
+  /** sandbox payment object backing this move (e.g. a Razorpay test order) */
+  receipt?: { provider: "razorpay-test" | "simulated"; id: string };
 }
 
 export interface ScheduledPayment {

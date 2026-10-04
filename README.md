@@ -99,6 +99,13 @@ On wide screens, a side rail narrates the architecture live: the numbers the rul
 
 External calls are mocked with simulated latency and deterministic outcomes.
 
+## Connectors (sandbox/test-mode only — no real data, ever)
+
+Phase-2 integrations live behind `lib/connectors/`, each with the same contract as the LLM layer: env-selected, graceful mock fallback, provenance surfaced in the UI.
+
+- **Bank (`BANK_PROVIDER`, default `aa-sim`)** — a self-hosted **Account Aggregator simulator** that mirrors the Setu Bridge consent contract: consent session → the aggregator's hosted consent screen (its own surface, not the Guardian's) → grant → FI data fetch, with a deterministic 6-month synthetic deposit payload. Onboarding's "Link HDFC savings" runs this flow for real; the linked card shows "via Account Aggregator (simulator) · consent on record". Why a simulator: the real Setu AA sandbox signup is geo-fenced to India (and production AA requires an FIU licence); the app-side flow is identical, so real keys are an env swap. Direct CIBIL access, for anyone unregulated, is legally impossible (CICRA specified-user regime) — the seam shows where it would plug in.
+- **Payments (`PAY_PROVIDER=razorpay` + `RAZORPAY_KEY_ID`/`RAZORPAY_KEY_SECRET`)** — every executed move creates a **test-mode Razorpay Order**, and the action log shows the `order_…` receipt chip (openable in the Razorpay test dashboard). The connector refuses live keys (`rzp_live_…`) on principle. Without keys, receipts are simulated and labelled as such.
+
 ## Deploying
 
 Standard Next.js — deploys to Vercel free tier as-is (`vercel` or import the repo). State is in-memory per serverless instance, which is fine for a demo; the reset button reseeds after cold starts. Optionally set `LLM_PROVIDER=hf` + `HF_API_TOKEN` (or `frontier` + a key) in the project's environment variables for live explanations.

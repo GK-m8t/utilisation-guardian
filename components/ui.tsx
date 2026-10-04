@@ -121,6 +121,16 @@ export function ActionLog({ entries }: { entries: ActionLogEntry[] }) {
               <span className="ml-2 text-[12px] text-faint">{e.date}</span>
             </p>
             <p className="mt-0.5 text-[13px] leading-relaxed text-mute">{e.note}</p>
+            {e.receipt && (
+              <p className="mt-1 inline-flex items-center gap-1.5 rounded-md border border-(--hairline) px-1.5 py-0.5 font-mono text-[10.5px] text-faint">
+                <span
+                  aria-hidden
+                  className="inline-block h-1.5 w-1.5 rounded-full"
+                  style={{ background: e.receipt.provider === "razorpay-test" ? "var(--color-sage)" : "var(--color-faint)" }}
+                />
+                {e.receipt.provider === "razorpay-test" ? "Razorpay test" : "simulated"} · {e.receipt.id}
+              </p>
+            )}
           </div>
         </li>
       ))}

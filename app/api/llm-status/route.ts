@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
+import { bankProvider } from "@/lib/connectors/bank";
+import { paymentProviderLabel } from "@/lib/connectors/payment";
 
 export const dynamic = "force-dynamic";
 
@@ -12,6 +14,7 @@ export async function GET(req: NextRequest) {
   const provider = process.env.LLM_PROVIDER ?? null;
 
   const status = {
+    connectors: { bank: bankProvider(), payment: paymentProviderLabel() },
     provider,
     model:
       provider === "hf"
